@@ -84,6 +84,9 @@ try { currentTheme = globalThis.localStorage.getItem(themeStorageKey) === 'dark'
 applyTheme(currentTheme)
 
 const appBase = import.meta.env.BASE_URL
+const doctorPortalUrl = new URL(`${appBase}doctor`, window.location.origin)
+doctorPortalUrl.searchParams.set('portal', 'doctor')
+const doctorPortalHref = doctorPortalUrl.toString()
 const appPath = window.location.pathname.slice(appBase.length - 1).replace(/\/$/, '') || '/'
 const isPublicDisplay = appPath === '/display'
 const isPublicRegistration = appPath === '/register'
@@ -434,6 +437,13 @@ function dashboardPage() {
       ${metricCard('Being served', metric.serving, 'across all departments', 'heart', 'teal', '<span class="live-dot"></span> Live')}
       ${metricCard('Completed visits', metric.completed, 'today so far', 'check', 'green', '<span class="up-arrow">●</span> Today')}
     </div>
+    ${state.profile.role === 'Admin' ? `<section class="section-block qr-share-section">
+      <div class="section-heading"><div><h2>Quick access QR codes</h2><p>Admin-managed QR codes for patient registration and secure doctor sign-in.</p></div></div>
+      <div class="dashboard-qr-grid">
+        <div class="qr-share-card"><div id="registration-qr" class="qr-code" role="img" aria-label="QR code for patient registration"></div><div><strong>Patient self-registration</strong><p>Patients can scan this code to open MediQ registration on their phone. Display it at reception or in the waiting area.</p><a class="text-button" href="${import.meta.env.BASE_URL}register" target="_blank" rel="noopener">Open registration page ${icon('arrow')}</a></div></div>
+        <div class="qr-share-card doctor-login-qr-card"><div id="doctor-login-qr" class="qr-code" role="img" aria-label="QR code for doctor dashboard login"></div><div><strong>Doctor dashboard login</strong><p>Doctors scan this code to open the secure Doctor Portal, then sign in with their own work email and password. The QR code does not contain credentials.</p><a class="text-button" href="${doctorPortalHref}" target="_blank" rel="noopener">Open doctor login page ${icon('arrow')}</a></div></div>
+      </div>
+    </section>` : ''}
     <section class="section-block">
       <div class="section-heading"><div><h2>Department overview</h2><p>Live queue status across your departments</p></div><button class="link-button" data-page="Queue Management">Manage queues ${icon('chevron')}</button></div>
       <div class="department-grid">
@@ -444,12 +454,7 @@ function dashboardPage() {
       <div class="section-heading"><div><h2>Recent registrations</h2><p>Your latest patient check-ins</p></div><button class="link-button" data-page="Patients">View all patients ${icon('chevron')}</button></div>
       <div class="table-card"><div class="table-wrap"><table><thead><tr><th>PATIENT</th><th>DEPARTMENT</th><th>TOKEN</th><th>PRIORITY</th><th>STATUS</th><th>ARRIVAL</th></tr></thead><tbody>${patientRows(recent)}</tbody></table></div></div>
     </section>
-    ${state.profile.role === 'Admin' ? `    <section class="section-block qr-share-section">
-      <div class="section-heading"><div><h2>Patient self-registration QR</h2><p>Patients can scan this code to open MediQ registration on their phone.</p></div></div>
-      <div class="qr-share-card"><div id="registration-qr" class="qr-code" role="img" aria-label="QR code for patient registration"></div><div><strong>Scan to join the queue</strong><p>Share this code at reception or display it in your waiting area. Do not use it for medical emergencies.</p><a class="text-button" href="${import.meta.env.BASE_URL}register" target="_blank" rel="noopener">Open registration page ${icon('arrow')}</a></div></div>
-      <div class="section-heading doctor-qr-heading"><div><h2>Doctor dashboard login QR</h2><p>Doctors can scan this code to open the secure doctor sign-in page.</p></div></div>
-      <div class="qr-share-card doctor-login-qr-card"><div id="doctor-login-qr" class="qr-code" role="img" aria-label="QR code for doctor dashboard login"></div><div><strong>Scan to open Doctor Login</strong><p>Each doctor must sign in using their own MediQ work email and password. This QR code does not contain login credentials or bypass authentication.</p><a class="text-button" href="${window.location.origin}${import.meta.env.BASE_URL}doctor" target="_blank" rel="noopener">Open doctor login page ${icon('arrow')}</a></div></div>
-    </section>` : ''}
+
     <div class="dashboard-bottom">
       <div class="info-note">${icon('heart')}<div><strong>A note on clinical priority</strong><p>Priority is set only by authorized clinical staff. MediQ does not diagnose or assign priority automatically.</p></div><button class="note-close" data-action="dismiss-note" aria-label="Dismiss note">${icon('close')}</button></div>
       <button class="public-shortcut" data-action="open-public-display">${icon('monitor')}<span><strong>Public queue display</strong><small>Token-only screen · opens without staff sign-in</small></span>${icon('chevron')}</button>
@@ -601,10 +606,7 @@ function renderPage() {
   const registrationQr = document.querySelector('#registration-qr')
   if (registrationQr) drawQrCode(registrationQr, `${window.location.origin}${import.meta.env.BASE_URL}register`)
   const doctorLoginQr = document.querySelector('#doctor-login-qr')
-  if (doctorLoginQr) {
-    const doctorLoginUrl = new URL('doctor', new URL(import.meta.env.BASE_URL, window.location.origin))
-    drawQrCode(doctorLoginQr, doctorLoginUrl.toString())
-  }
+  if (doctorLoginQr) drawQrCode(doctorLoginQr, doctorPortalHref)
 }
 
 function renderModal() {
