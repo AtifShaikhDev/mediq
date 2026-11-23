@@ -439,7 +439,7 @@ function dashboardPage() {
       ${metricCard('Completed visits', metric.completed, 'today so far', 'check', 'green', '<span class="up-arrow">●</span> Today')}
     </div>
     ${state.profile.role === 'Admin' ? `<section class="section-block qr-share-section">
-      <div class="section-heading"><div><h2>Quick access QR codes</h2><p>Admin-managed QR codes for patient registration and secure doctor sign-in.</p></div></div>
+      <div class="section-heading"><div><h2>Quick access QR codes</h2><p>Admin-managed QR codes for the Patient Dashboard and secure doctor sign-in.</p></div></div>
       <div class="dashboard-qr-grid">
         <div class="qr-share-card"><div id="registration-qr" class="qr-code" role="img" aria-label="QR code for the Patient Dashboard"></div><div><strong>Patient Dashboard</strong><p>Patients scan this code to open their dashboard, complete registration, and then track their own live queue. Display it at reception or in the waiting area.</p><a class="text-button" href="${import.meta.env.BASE_URL}patient" target="_blank" rel="noopener">Open Patient Dashboard ${icon('arrow')}</a></div></div>
         <div class="qr-share-card doctor-login-qr-card"><div id="doctor-login-qr" class="qr-code" role="img" aria-label="QR code for doctor dashboard login"></div><div><strong>Doctor dashboard login</strong><p>Doctors scan this code to open the secure Doctor Portal, then sign in with their own work email and password. The QR code does not contain credentials.</p><a class="text-button" href="${doctorPortalHref}" target="_blank" rel="noopener">Open doctor login page ${icon('arrow')}</a></div></div>
