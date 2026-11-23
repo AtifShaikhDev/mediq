@@ -124,11 +124,16 @@ function averageWait(records) {
     : null
 }
 
+const priorityRank = { red: 0, yellow: 1, green: 2, none: 3 }
+function compareQueuePriority(a, b) {
+  return priorityRank[a.priority || 'none'] - priorityRank[b.priority || 'none']
+    || new Date(a.arrivalAt) - new Date(b.arrivalAt)
+}
+
 function sortedQueue(department) {
-  const priorityRank = { red: 0, yellow: 1, green: 2, none: 3 }
   return state.queues
     .filter((patient) => patient.department === department && patient.status === 'Waiting' && patient.queueDate === dateKey() && (state.profile?.role !== 'Doctor' || patient.doctorUserId === state.user.id))
-    .sort((a, b) => priorityRank[a.priority || 'none'] - priorityRank[b.priority || 'none'] || new Date(a.arrivalAt) - new Date(b.arrivalAt))
+    .sort(compareQueuePriority)
 }
 
 function escapeHtml(value = '') {
@@ -456,7 +461,7 @@ function dashboardPage() {
     </section>
 
     <div class="dashboard-bottom">
-      <div class="info-note">${icon('heart')}<div><strong>A note on clinical priority</strong><p>Priority is set only by authorized clinical staff. MediQ does not diagnose or assign priority automatically.</p></div><button class="note-close" data-action="dismiss-note" aria-label="Dismiss note">${icon('close')}</button></div>
+      <div class="info-note">${icon('heart')}<div><strong>A note on clinical priority</strong><p>MediQ automatically orders the queue by the priority assigned by authorized clinical staff, then by arrival time. Clinical priority is never diagnosed or assigned by software.</p></div><button class="note-close" data-action="dismiss-note" aria-label="Dismiss note">${icon('close')}</button></div>
       <button class="public-shortcut" data-action="open-public-display">${icon('monitor')}<span><strong>Public queue display</strong><small>Token-only screen · opens without staff sign-in</small></span>${icon('chevron')}</button>
     </div>`
 }
@@ -466,7 +471,7 @@ function doctorDashboardPage() {
   const waiting = mine.filter((item) => item.status === 'Waiting')
   const serving = mine.find((item) => item.status === 'Serving')
   const completed = mine.filter((item) => item.status === 'Completed')
-  const ordered = [...waiting].sort((a, b) => new Date(a.arrivalAt) - new Date(b.arrivalAt))
+  const ordered = [...waiting].sort(compareQueuePriority)
   return `${pageHeading('Doctor dashboard', 'Your assigned appointments and live queue status.', '')}
     <div class="metric-grid">
       ${metricCard('Assigned today', mine.length, 'your appointments', 'users', 'blue', 'Today')}
@@ -476,10 +481,10 @@ function doctorDashboardPage() {
     </div>
     <section class="section-block">
       <div class="section-heading"><div><h2>Your appointment queue</h2><p>Only patients registered with you are shown here.</p></div><button class="link-button" data-page="Queue Management">Open queue management ${icon('chevron')}</button></div>
-      <div class="table-card"><div class="table-wrap"><table><thead><tr><th>POSITION</th><th>PATIENT</th><th>TOKEN</th><th>STATUS</th><th>ARRIVAL</th></tr></thead><tbody>
-      ${ordered.map((patient,index) => `<tr><td>${index+1}</td><td><strong>${escapeHtml(patient.name)}</strong><small>${escapeHtml(patient.id)}</small></td><td><strong>${escapeHtml(patient.token)}</strong></td><td><span class="status-badge waiting">Waiting</span></td><td>${formatTime(patient.arrivalAt)}</td></tr>`).join('')}
+      <div class="table-card"><div class="table-wrap"><table><thead><tr><th>POSITION</th><th>PATIENT</th><th>TOKEN</th><th>PRIORITY</th><th>STATUS</th><th>ARRIVAL</th></tr></thead><tbody>
+      ${ordered.map((patient,index) => `<tr><td>${index+1}</td><td><strong>${escapeHtml(patient.name)}</strong><small>${escapeHtml(patient.id)}</small></td><td><strong>${escapeHtml(patient.token)}</strong></td><td><span class="priority-badge ${patient.priority || 'none'}"><i></i>${patient.priority ? ({ red: 'High', yellow: 'Medium', green: 'Low' }[patient.priority] || 'Not set') : 'Not set'}</span></td><td><span class="status-badge waiting">Waiting</span></td><td>${formatTime(patient.arrivalAt)}</td></tr>`).join('')}
       ${serving ? `<tr><td>—</td><td><strong>Currently serving</strong></td><td><strong>${escapeHtml(serving.token)}</strong></td><td><span class="status-badge serving">Serving</span></td><td>${formatTime(serving.arrivalAt)}</td></tr>` : ''}
-      ${!ordered.length && !serving ? '<tr><td colspan="5">No appointments assigned for today.</td></tr>' : ''}
+      ${!ordered.length && !serving ? '<tr><td colspan="6">No appointments assigned for today.</td></tr>' : ''}
       </tbody></table></div></div>
     </section>`
 }
@@ -511,10 +516,10 @@ function queuePage() {
   const canComplete = ['Admin', 'Doctor', 'Nurse'].includes(state.profile.role)
   const canRegister = ['Admin', 'Receptionist'].includes(state.profile.role)
   return `${pageHeading('Queue management', 'Coordinate patient flow across every department.', `<button class="button button-secondary" data-action="open-public-display">${icon('monitor')} Public display</button>${canRegister ? `<button class="button button-primary" data-action="open-register">${icon('plus')} Add to queue</button>` : ''}`)}
-    <div class="queue-notice">${icon('heart')} <span>Clinical priority is set by authorized staff only. Queues are ordered by priority, then arrival time.</span></div>
+    <div class="queue-notice">${icon('heart')} <span>Clinical priority is set by authorized staff only. Waiting patients are automatically ordered by assigned clinical priority, then arrival time. Priority is never assigned by software.</span></div>
     <div class="queue-departments">${departments.map((department, index) => {
       const queue = sortedQueue(department)
-      const serving = state.queues.find((patient) => patient.department === department && patient.status === 'Serving' && patient.queueDate === dateKey())
+      const serving = state.queues.find((patient) => patient.department === department && patient.status === 'Serving' && patient.queueDate === dateKey() && (state.profile.role !== 'Doctor' || patient.doctorUserId === state.user.id))
       const code = state.departmentRows.find((item) => item.name === department)?.code || ''
       return `<section class="queue-card"><div class="queue-card-heading"><div><span class="department-chip ${['blue', 'rose', 'violet'][index]}">${code}</span><div><h2>${department}</h2><p>${queue.length} waiting · ${serving ? '1 being served' : 'No patient serving'}</p></div></div><button class="button button-primary button-small" data-action="call-next" data-department="${department}" ${!queue.length ? 'disabled' : ''}>Call next ${icon('arrow')}</button></div>
         ${serving ? `<div class="serving-banner"><span class="live-dot"></span><span>NOW SERVING</span><strong>${escapeHtml(serving.token)}</strong><em>Patient checked in at ${formatTime(serving.arrivalAt)}</em>${canComplete ? `<button class="button button-small button-done" data-action="complete-patient" data-id="${serving.queueId}">${icon('check')} Complete</button>` : ''}</div>` : ''}
