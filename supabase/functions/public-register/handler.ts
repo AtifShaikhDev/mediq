@@ -254,6 +254,12 @@ async function handleRequest(
     return jsonResponse(origin, { error: 'Registration is temporarily unavailable.' }, 503)
   }
 
+  const dashboardBytes = new Uint8Array(32)
+  crypto.getRandomValues(dashboardBytes)
+  const dashboardToken = Array.from(dashboardBytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  const dashboardTokenHashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(dashboardToken))
+  const dashboardTokenHash = Array.from(new Uint8Array(dashboardTokenHashBuffer), (byte) => byte.toString(16).padStart(2, '0')).join('')
+
   const { data, error } = await adminClient.rpc('register_public_patient', {
     p_idempotency_key: idempotencyKey,
     p_request_hash: requestHash,
@@ -264,6 +270,7 @@ async function handleRequest(
     p_mobile: registration.mobile,
     p_department_name: registration.department,
     p_doctor_user_id: registration.doctorUserId,
+    p_dashboard_token_hash: dashboardTokenHash,
   })
 
   if (error) return rpcErrorResponse(origin, error.code || null, dependencies.logError)
@@ -273,7 +280,7 @@ async function handleRequest(
     return jsonResponse(origin, { error: 'Registration is temporarily unavailable. Please try again later.' }, 503)
   }
 
-  return jsonResponse(origin, { patientId: result.patient_code, token: result.token }, 201)
+  return jsonResponse(origin, { patientId: result.patient_code, token: result.token, dashboardToken }, 201)
 }
 
 export function createPublicRegistrationHandler(dependencies: PublicRegistrationDependencies) {
