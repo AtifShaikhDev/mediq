@@ -25,6 +25,7 @@ function mapQueue(record) {
     createdAt: record.created_at,
     arrivalAt: record.visit.arrived_at,
     calledAt: record.called_at,
+    doctorUserId: record.visit.doctor_user_id,
   }
 }
 
@@ -49,7 +50,7 @@ export async function loadWorkspace(client, user) {
       .order('created_at', { ascending: false })
       .limit(2000),
     client.from('queue_records')
-      .select('id,token,priority,status,queue_date,created_at,called_at,department:departments!queue_records_department_id_fkey(id,name,code),visit:visits!inner(id,arrived_at,patient:patients!inner(id,patient_code,full_name,age,gender,mobile))')
+      .select('id,token,priority,status,queue_date,created_at,called_at,department:departments!queue_records_department_id_fkey(id,name,code),visit:visits!inner(id,arrived_at,doctor_user_id,patient:patients!inner(id,patient_code,full_name,age,gender,mobile))')
       .order('created_at', { ascending: false })
       .limit(2000),
     client.from('staff_profiles')
