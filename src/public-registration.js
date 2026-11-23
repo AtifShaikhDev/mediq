@@ -1,4 +1,4 @@
-import { registerPublicPatient } from './lib/api.js'
+import { loadPublicDoctors, registerPublicPatient } from './lib/api.js'
 
 const departments = ['General Medicine', 'Emergency', 'Cardiology']
 const genders = ['Female', 'Male', 'Non-binary', 'Prefer not to say']
@@ -41,6 +41,7 @@ export function renderPublicRegistration(app, icon, client, registrationEnabled)
             <label class="form-field"><span>Gender <b>*</b></span><select name="gender" required><option value="">Select gender</option>${genders.map((gender) => `<option value="${gender}">${gender}</option>`).join('')}</select></label>
             <label class="form-field registration-full"><span>Mobile number <b>*</b></span><input name="mobile" type="tel" inputmode="tel" autocomplete="tel" maxlength="16" required aria-describedby="registration-mobile-help" placeholder="+91 98765 43210"><small id="registration-mobile-help">Use a 10-digit Indian mobile number, with or without +91.</small></label>
             <label class="form-field registration-full"><span>Department <b>*</b></span><select name="department" required><option value="">Choose a department</option>${departments.map((department) => `<option value="${department}">${department}</option>`).join('')}</select></label>
+            <label class="form-field registration-full"><span>Select doctor <b>*</b></span><select name="doctorUserId" required disabled><option value="">Choose a department first</option></select></label>
           </div>
           <div class="registration-privacy" role="note"><strong>Privacy notice</strong><span>${registrationReady ? 'Your details are used to create your patient record and queue entry. Personal details are not shown on the public queue display. Do not enter medical details here.' : 'Online registration is not active yet. Your details will not be sent or saved. Do not enter medical details here.'}</span></div>
           <button class="button button-primary public-registration-submit" type="submit" ${registrationReady ? '' : 'disabled'}>${registrationReady ? `${icon('check')} Submit Registration` : 'Registration Currently Unavailable'}</button>
@@ -65,6 +66,35 @@ export function renderPublicRegistration(app, icon, client, registrationEnabled)
   const submit = form.querySelector('button[type="submit"]')
   const nameInput = form.elements.fullName
   const mobileInput = form.elements.mobile
+  const departmentSelect = form.elements.department
+  const doctorSelect = form.elements.doctorUserId
+  let publicDoctors = []
+  let doctorDirectoryLoaded = false
+
+  const updateDoctorOptions = () => {
+    const department = departmentSelect.value
+    const matchingDoctors = publicDoctors.filter((doctor) => doctor.department_name === department)
+    doctorSelect.innerHTML = matchingDoctors.length
+      ? '<option value="">Choose a doctor</option>' + matchingDoctors.map((doctor) =>
+        `<option value="${doctor.user_id}">${String(doctor.full_name).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character])}</option>`
+      ).join('')
+      : '<option value="">No active doctors in this department</option>'
+    doctorSelect.disabled = !department || matchingDoctors.length === 0
+  }
+
+  departmentSelect.addEventListener('change', updateDoctorOptions)
+  if (registrationReady) {
+    loadPublicDoctors(client)
+      .then((doctors) => {
+        publicDoctors = doctors
+        doctorDirectoryLoaded = true
+        updateDoctorOptions()
+      })
+      .catch(() => {
+        status.textContent = 'Doctor list is temporarily unavailable. Please refresh the page or contact hospital reception.'
+        status.hidden = false
+      })
+  }
   let idempotencyKey = ''
   try {
     idempotencyKey = globalThis.sessionStorage.getItem(idempotencyStorageKey) || ''
@@ -99,12 +129,20 @@ export function renderPublicRegistration(app, icon, client, registrationEnabled)
       return
     }
 
+    if (!doctorDirectoryLoaded || !doctorSelect.value) {
+      status.textContent = 'Please select a doctor from the selected department.'
+      status.hidden = false
+      status.focus()
+      return
+    }
+
     const patient = {
       fullName: nameInput.value.trim(),
       age: Number(form.elements.age.value),
       gender: form.elements.gender.value,
       mobile: mobileInput.value.trim(),
-      department: form.elements.department.value,
+      department: departmentSelect.value,
+      doctorUserId: doctorSelect.value,
     }
     if (!idempotencyKey) {
       if (!globalThis.crypto?.randomUUID) {
@@ -169,6 +207,7 @@ export function renderPublicRegistration(app, icon, client, registrationEnabled)
     success.hidden = true
     form.hidden = false
     form.reset()
+    updateDoctorOptions()
     status.hidden = true
   })
 
