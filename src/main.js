@@ -247,6 +247,26 @@ async function loadSignedInWorkspace(user, force = false) {
         renderProfileMissing()
         return
       }
+
+      // Keep the Doctor portal and the hospital staff portal isolated by role.
+      // Supabase Auth sessions are shared across tabs on the same origin, so
+      // the active account must be checked on every portal load.
+      const signedInRole = workspace.profile.role
+      const wrongPortalRole = isDoctorPortal
+        ? signedInRole !== 'Doctor'
+        : signedInRole === 'Doctor'
+      if (wrongPortalRole) {
+        state.loading = false
+        state.profile = null
+        state.authError = isDoctorPortal
+          ? 'This account is not a Doctor account. Please sign in with your doctor credentials.'
+          : 'This is a Doctor account. Please open the Doctor Portal using the Doctor QR code.'
+        lastLoadedUserId = null
+        stopWorkspaceRealtime()
+        renderSignIn(state.authError)
+        return
+      }
+
       state.profile = workspace.profile
       state.patients = workspace.patients
       state.queues = workspace.queues
