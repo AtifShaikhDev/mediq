@@ -94,6 +94,7 @@ let workspaceChannel = null
 let publicChannel = null
 let lastLoadedUserId = null
 let workspaceLoadPromise = null
+let doctorSignInInitiated = false
 let retentionStatusRequestId = 0
 
 function todayPatients() {
@@ -909,6 +910,7 @@ app.addEventListener('change', (event) => {
 app.addEventListener('submit', (event) => {
   if (event.target.id === 'sign-in-form') {
     event.preventDefault()
+    if (isDoctorPortal) doctorSignInInitiated = true
     const data = new FormData(event.target)
     const submit = event.target.querySelector('button[type="submit"]')
     submit.disabled = true
@@ -994,7 +996,7 @@ if (isPublicRegistration) {
     window.setTimeout(() => {
       // Never hydrate an existing Admin session on the doctor QR route.
       // Only an explicit sign-in action should enter the workspace.
-      if (doctorPortalRequested && event !== 'SIGNED_IN') return
+      if (doctorPortalRequested && (!doctorSignInInitiated || event !== 'SIGNED_IN')) return
       if (session?.user) {
         if (doctorPortalRequested && event === 'SIGNED_IN') {
           const cleanUrl = new URL(window.location.href)
