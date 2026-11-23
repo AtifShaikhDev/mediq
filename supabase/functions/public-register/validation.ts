@@ -1,6 +1,6 @@
 const genders = new Set(['Female', 'Male', 'Non-binary', 'Prefer not to say'])
 const departments = new Set(['General Medicine', 'Emergency', 'Cardiology'])
-const registrationFields = ['age', 'department', 'fullName', 'gender', 'mobile']
+const registrationFields = ['age', 'department', 'doctorUserId', 'fullName', 'gender', 'mobile']
 
 export class RegistrationValidationError extends Error {}
 
@@ -10,6 +10,7 @@ export type NormalizedRegistration = {
   gender: string
   mobile: string
   department: string
+  doctorUserId: string
 }
 
 export function normalizeRegistration(value: unknown): NormalizedRegistration {
@@ -52,11 +53,16 @@ export function normalizeRegistration(value: unknown): NormalizedRegistration {
     throw new RegistrationValidationError('Select a valid department.')
   }
 
+  if (typeof body.doctorUserId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.doctorUserId)) {
+    throw new RegistrationValidationError('Select a valid doctor.')
+  }
+
   return {
     fullName,
     age: body.age,
     gender: body.gender,
     mobile: `+91${mobileMatch[1]}`,
     department: body.department,
+    doctorUserId: body.doctorUserId,
   }
 }
