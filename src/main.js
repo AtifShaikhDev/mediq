@@ -14,6 +14,7 @@ import {
 } from './lib/api.js'
 import { isSupabaseConfigured, supabase, supabaseConfigError } from './lib/supabase.js'
 import { renderPublicRegistration } from './public-registration.js'
+import { loadPublicPatientTracking } from './lib/api.js'
 
 let departments = []
 const iconPaths = {
@@ -86,6 +87,7 @@ const appBase = import.meta.env.BASE_URL
 const appPath = window.location.pathname.slice(appBase.length - 1).replace(/\/$/, '') || '/'
 const isPublicDisplay = appPath === '/display'
 const isPublicRegistration = appPath === '/register'
+const isPublicPatient = appPath === '/patient'
 const isPublicRegistrationEnabled = import.meta.env.VITE_PUBLIC_REGISTRATION_ENABLED === 'true'
 let workspaceChannel = null
 let publicChannel = null
@@ -295,6 +297,30 @@ function subscribeWorkspaceRealtime() {
         refreshTimer = window.setTimeout(() => loadSignedInWorkspace(state.user, true), 100)
       }
     })
+}
+
+async function renderPatientDashboard() {
+  document.body.classList.add('public-registration-page')
+  const accessToken = new URLSearchParams(window.location.search).get('access') || ''
+  app.innerHTML = `<main class="public-route"><section class="auth-card"><h1>Patient Dashboard</h1><p>Loading your queue…</p><div class="loading-indicator"></div></section></main>`
+  if (!/^[0-9a-f]{64}$/.test(accessToken)) {
+    app.innerHTML = `<main class="public-route"><section class="auth-card"><h1>Private tracking link required</h1><p>Open this dashboard using the private link provided after registration.</p><a class="button button-primary" href="${appBase}register">Go to registration</a></section></main>`
+    return
+  }
+  const render = async () => {
+    const row = await loadPublicPatientTracking(supabase, accessToken)
+    app.innerHTML = `<main class="public-route"><div class="public-registration-shell"><header class="public-registration-header"><a class="brand public-registration-brand" href="${appBase}display"><span class="brand-mark">${icon('heart')}</span><span class="brand-copy"><strong>Medi<span>Q</span></strong><small>CARE, IN ORDER</small></span></a><span class="registration-route-label">PATIENT DASHBOARD</span></header><section class="public-registration-card"><p class="eyebrow">YOUR LIVE QUEUE</p><h1>Patient Dashboard</h1><div class="patient-tracking-token"><span>Your token</span><strong>${escapeHtml(row.patient_token)}</strong></div><div class="patient-tracking-grid"><div><span>Appointment status</span><strong>${escapeHtml(row.appointment_status)}</strong></div><div><span>Now serving</span><strong>${escapeHtml(row.now_serving_token || '—')}</strong></div><div><span>Patients ahead</span><strong>${Number(row.patients_ahead || 0)}</strong></div><div><span>Department</span><strong>${escapeHtml(row.department_name)}</strong></div><div><span>Doctor</span><strong>${escapeHtml(row.doctor_name)}</strong></div><div><span>Queue date</span><strong>${escapeHtml(row.queue_date)}</strong></div></div><p class="public-registration-intro">Queue information refreshes automatically.</p></section><footer class="public-registration-footer">Keep this private link secure. © ${new Date().getFullYear()} MediQ</footer></div></main>`
+  }
+  try {
+    await render()
+    if (publicChannel) supabase.removeChannel(publicChannel)
+    publicChannel = supabase.channel('mediq-patient-tracking')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'queue_records' }, () => render().catch(() => {}))
+      .subscribe()
+    window.setInterval(() => render().catch(() => {}), 15000)
+  } catch {
+    app.innerHTML = `<main class="public-route"><section class="auth-card"><h1>Tracking link unavailable</h1><p>This private link may be invalid. Contact hospital reception for help.</p></section></main>`
+  }
 }
 
 async function renderPublicDisplay() {
@@ -945,6 +971,8 @@ document.addEventListener('keydown', (event) => {
 
 if (isPublicRegistration) {
   renderPublicRegistration(app, icon, supabase, isPublicRegistrationEnabled)
+} else if (isPublicPatient) {
+  renderPatientDashboard()
 } else if (!isSupabaseConfigured) {
   renderConfigurationError()
 } else if (isPublicDisplay) {
