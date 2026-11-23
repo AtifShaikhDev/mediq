@@ -425,7 +425,7 @@ function dashboardPage() {
       <div class="section-heading"><div><h2>Patient self-registration QR</h2><p>Patients can scan this code to open MediQ registration on their phone.</p></div></div>
       <div class="qr-share-card"><div id="registration-qr" class="qr-code" role="img" aria-label="QR code for patient registration"></div><div><strong>Scan to join the queue</strong><p>Share this code at reception or display it in your waiting area. Do not use it for medical emergencies.</p><a class="text-button" href="${import.meta.env.BASE_URL}register" target="_blank" rel="noopener">Open registration page ${icon('arrow')}</a></div></div>
       <div class="section-heading doctor-qr-heading"><div><h2>Doctor dashboard login QR</h2><p>Doctors can scan this code to open the secure doctor sign-in page.</p></div></div>
-      <div class="qr-share-card doctor-login-qr-card"><div id="doctor-login-qr" class="qr-code" role="img" aria-label="QR code for doctor dashboard login"></div><div><strong>Scan to open Doctor Login</strong><p>Each doctor must sign in using their own MediQ work email and password. This QR code does not contain login credentials or bypass authentication.</p><a class="text-button" href="${window.location.origin}${import.meta.env.BASE_URL}?portal=doctor" target="_blank" rel="noopener">Open doctor login page ${icon('arrow')}</a></div></div>
+      <div class="qr-share-card doctor-login-qr-card"><div id="doctor-login-qr" class="qr-code" role="img" aria-label="QR code for doctor dashboard login"></div><div><strong>Scan to open Doctor Login</strong><p>Each doctor must sign in using their own MediQ work email and password. This QR code does not contain login credentials or bypass authentication.</p><a class="text-button" href="${window.location.origin}${import.meta.env.BASE_URL}doctor" target="_blank" rel="noopener">Open doctor login page ${icon('arrow')}</a></div></div>
     </section>` : ''}
     <div class="dashboard-bottom">
       <div class="info-note">${icon('heart')}<div><strong>A note on clinical priority</strong><p>Priority is set only by authorized clinical staff. MediQ does not diagnose or assign priority automatically.</p></div><button class="note-close" data-action="dismiss-note" aria-label="Dismiss note">${icon('close')}</button></div>
@@ -579,8 +579,7 @@ function renderPage() {
   if (registrationQr) drawQrCode(registrationQr, `${window.location.origin}${import.meta.env.BASE_URL}register`)
   const doctorLoginQr = document.querySelector('#doctor-login-qr')
   if (doctorLoginQr) {
-    const doctorLoginUrl = new URL(import.meta.env.BASE_URL, window.location.origin)
-    doctorLoginUrl.searchParams.set('portal', 'doctor')
+    const doctorLoginUrl = new URL('doctor', new URL(import.meta.env.BASE_URL, window.location.origin))
     drawQrCode(doctorLoginQr, doctorLoginUrl.toString())
   }
 }
