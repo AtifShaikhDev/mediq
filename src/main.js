@@ -329,8 +329,12 @@ async function renderPatientDashboard() {
   document.body.classList.add('public-registration-page')
   const accessToken = new URLSearchParams(window.location.search).get('access') || ''
   app.innerHTML = `<main class="public-route"><section class="auth-card"><h1>Patient Dashboard</h1><p>Loading your queue…</p><div class="loading-indicator"></div></section></main>`
+  if (!accessToken) {
+    renderPublicRegistration(app, icon, supabase, isPublicRegistrationEnabled)
+    return
+  }
   if (!/^[0-9a-f]{64}$/.test(accessToken)) {
-    app.innerHTML = `<main class="public-route"><section class="auth-card"><h1>Private tracking link required</h1><p>Open this dashboard using the private link provided after registration.</p><a class="button button-primary" href="${appBase}register">Go to registration</a></section></main>`
+    app.innerHTML = `<main class="public-route"><section class="auth-card"><h1>Tracking link unavailable</h1><p>This private dashboard link is invalid. Please scan the hospital’s Patient Dashboard QR code to register again.</p><a class="button button-primary" href="${appBase}patient">Open Patient Dashboard</a></section></main>`
     return
   }
   const render = async () => {
@@ -437,7 +441,7 @@ function dashboardPage() {
     ${state.profile.role === 'Admin' ? `<section class="section-block qr-share-section">
       <div class="section-heading"><div><h2>Quick access QR codes</h2><p>Admin-managed QR codes for patient registration and secure doctor sign-in.</p></div></div>
       <div class="dashboard-qr-grid">
-        <div class="qr-share-card"><div id="registration-qr" class="qr-code" role="img" aria-label="QR code for patient registration"></div><div><strong>Patient self-registration</strong><p>Patients can scan this code to open MediQ registration on their phone. Display it at reception or in the waiting area.</p><a class="text-button" href="${import.meta.env.BASE_URL}register" target="_blank" rel="noopener">Open registration page ${icon('arrow')}</a></div></div>
+        <div class="qr-share-card"><div id="registration-qr" class="qr-code" role="img" aria-label="QR code for the Patient Dashboard"></div><div><strong>Patient Dashboard</strong><p>Patients scan this code to open their dashboard, complete registration, and then track their own live queue. Display it at reception or in the waiting area.</p><a class="text-button" href="${import.meta.env.BASE_URL}patient" target="_blank" rel="noopener">Open Patient Dashboard ${icon('arrow')}</a></div></div>
         <div class="qr-share-card doctor-login-qr-card"><div id="doctor-login-qr" class="qr-code" role="img" aria-label="QR code for doctor dashboard login"></div><div><strong>Doctor dashboard login</strong><p>Doctors scan this code to open the secure Doctor Portal, then sign in with their own work email and password. The QR code does not contain credentials.</p><a class="text-button" href="${doctorPortalHref}" target="_blank" rel="noopener">Open doctor login page ${icon('arrow')}</a></div></div>
       </div>
     </section>` : ''}
@@ -598,7 +602,7 @@ function renderPage() {
   document.querySelector('#page-content').innerHTML = (pages[state.page] || dashboardPage)()
   document.querySelector('.breadcrumb strong').textContent = state.page
   const registrationQr = document.querySelector('#registration-qr')
-  if (registrationQr) drawQrCode(registrationQr, `${window.location.origin}${import.meta.env.BASE_URL}register`)
+  if (registrationQr) drawQrCode(registrationQr, `${window.location.origin}${import.meta.env.BASE_URL}patient`)
   const doctorLoginQr = document.querySelector('#doctor-login-qr')
   if (doctorLoginQr) drawQrCode(doctorLoginQr, doctorPortalHref)
 }
@@ -988,7 +992,7 @@ document.addEventListener('keydown', (event) => {
 })
 
 if (isPublicRegistration) {
-  renderPublicRegistration(app, icon, supabase, isPublicRegistrationEnabled)
+  window.location.replace(`${appBase}patient`)
 } else if (isPublicPatient) {
   renderPatientDashboard()
 } else if (!isSupabaseConfigured) {
