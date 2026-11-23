@@ -169,7 +169,8 @@ export function renderPublicRegistration(app, icon, client, registrationEnabled)
       .then(() => registerPublicPatient(client, patient, idempotencyKey))
       .then((result) => {
         if (!result || typeof result.patientId !== 'string' || !result.patientId.trim()
-          || typeof result.token !== 'string' || !result.token.trim()) {
+          || typeof result.token !== 'string' || !result.token.trim()
+          || typeof result.dashboardToken !== 'string' || !/^[0-9a-f]{64}$/.test(result.dashboardToken)) {
           throw new Error('Registration response was incomplete.')
         }
         try {
@@ -178,7 +179,9 @@ export function renderPublicRegistration(app, icon, client, registrationEnabled)
         } catch {
           console.error('Could not clear the completed registration key from session storage.')
         }
-        showSuccess(result)
+        const dashboardUrl = new URL(`${import.meta.env.BASE_URL}patient`, window.location.origin)
+        dashboardUrl.searchParams.set('access', result.dashboardToken)
+        window.location.assign(dashboardUrl.toString())
       })
       .catch((error) => {
         status.textContent = error.status === 409
