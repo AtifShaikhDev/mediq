@@ -843,3 +843,11 @@ body.public-registration-page { min-width: 0; }
   .doctor-login-qr-card { align-items: flex-start; }
 }
 :root[data-theme="dark"] .doctor-login-qr-card { background: #203444; border-color: #3a5265; }
+
+/* Admin dashboard QR access: keep both codes together and easy to find. */
+.dashboard-qr-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.dashboard-qr-grid .qr-share-card { height: 100%; align-items: center; }
+.dashboard-qr-grid .qr-share-card > div:last-child { min-width: 0; }
+@media (max-width: 900px) {
+  .dashboard-qr-grid { grid-template-columns: 1fr; }
+}
