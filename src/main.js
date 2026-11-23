@@ -88,7 +88,7 @@ const appPath = window.location.pathname.slice(appBase.length - 1).replace(/\/$/
 const isPublicDisplay = appPath === '/display'
 const isPublicRegistration = appPath === '/register'
 const isPublicPatient = appPath === '/patient'
-const isDoctorPortal = appPath === '/doctor' || new URLSearchParams(window.location.search).get('portal') === 'doctor'
+const isDoctorPortal = window.location.pathname.replace(/\/+$/, '').endsWith('/doctor') || appPath === '/doctor' || new URLSearchParams(window.location.search).get('portal') === 'doctor'
 const isPublicRegistrationEnabled = import.meta.env.VITE_PUBLIC_REGISTRATION_ENABLED === 'true'
 let workspaceChannel = null
 let publicChannel = null
@@ -161,6 +161,7 @@ function navItem(label, iconName) {
 }
 
 function renderShell() {
+  if (isDoctorPortal && !doctorSignInInitiated) { renderSignIn(); return }
   app.innerHTML = `
     <aside class="sidebar ${state.mobileMenu ? 'mobile-open' : ''}">
       <a class="brand" href="#" data-page="Dashboard" aria-label="MediQ home">
@@ -231,6 +232,7 @@ function renderConnectionError(error) {
 }
 
 async function loadSignedInWorkspace(user, force = false) {
+  if (isDoctorPortal && !doctorSignInInitiated) { renderSignIn(); return }
   if (!force && state.profile && state.user?.id === user.id) return
   if (workspaceLoadPromise && state.user?.id === user.id) return workspaceLoadPromise
   state.loading = true
