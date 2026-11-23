@@ -19,7 +19,6 @@ function mapQueue(record) {
     departmentId: department.id,
     departmentCode: department.code,
     token: record.token,
-    priority: record.priority,
     status: record.status,
     queueDate: record.queue_date,
     createdAt: record.created_at,
@@ -50,7 +49,7 @@ export async function loadWorkspace(client, user) {
       .order('created_at', { ascending: false })
       .limit(2000),
     client.from('queue_records')
-      .select('id,token,priority,status,queue_date,created_at,called_at,department:departments!queue_records_department_id_fkey(id,name,code),visit:visits!inner(id,arrived_at,doctor_user_id,patient:patients!inner(id,patient_code,full_name,age,gender,mobile))')
+      .select('id,token,status,queue_date,created_at,called_at,department:departments!queue_records_department_id_fkey(id,name,code),visit:visits!inner(id,arrived_at,doctor_user_id,patient:patients!inner(id,patient_code,full_name,age,gender,mobile))')
       .order('created_at', { ascending: false })
       .limit(2000),
     client.from('staff_profiles')
@@ -173,14 +172,6 @@ export async function updatePatient(client, patient) {
 export async function callNextPatient(client, departmentId) {
   const result = await client.rpc('call_next_patient', { p_department_id: departmentId })
   return unwrap(result)?.[0]
-}
-
-export async function setQueuePriority(client, queueId, priority) {
-  const result = await client.rpc('set_queue_priority', {
-    p_queue_record_id: queueId,
-    p_priority: priority || null,
-  })
-  return unwrap(result)
 }
 
 export async function completeQueueRecord(client, queueId) {
