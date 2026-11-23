@@ -832,3 +832,14 @@ body.public-registration-page { min-width: 0; }
  .patient-visit-details { padding: 17px 14px 6px; }
  .patient-section-heading > span { display: none; }
 }
+
+
+/* Admin-managed doctor login QR */
+.doctor-qr-heading { margin-top: 24px; }
+.doctor-login-qr-card { border-color: #d7e6f0; background: linear-gradient(115deg, #f7fbff, #ffffff); }
+.doctor-login-qr-card .qr-code { flex: 0 0 auto; }
+.doctor-login-qr-card > div:last-child { max-width: 620px; }
+@media (max-width: 560px) {
+  .doctor-login-qr-card { align-items: flex-start; }
+}
+:root[data-theme="dark"] .doctor-login-qr-card { background: #203444; border-color: #3a5265; }
