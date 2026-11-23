@@ -108,6 +108,11 @@ export async function registerPatient(client, patient) {
   return unwrap(result)?.[0]
 }
 
+export async function loadPublicDoctors(client) {
+  const result = await client.rpc('get_public_doctor_directory')
+  return unwrap(result) || []
+}
+
 export async function registerPublicPatient(client, patient, idempotencyKey) {
   const result = await client.functions.invoke('public-register', {
     body: patient,
