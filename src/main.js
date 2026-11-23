@@ -88,6 +88,7 @@ const appPath = window.location.pathname.slice(appBase.length - 1).replace(/\/$/
 const isPublicDisplay = appPath === '/display'
 const isPublicRegistration = appPath === '/register'
 const isPublicPatient = appPath === '/patient'
+const isDoctorPortal = appPath === '/doctor' || new URLSearchParams(window.location.search).get('portal') === 'doctor'
 const isPublicRegistrationEnabled = import.meta.env.VITE_PUBLIC_REGISTRATION_ENABLED === 'true'
 let workspaceChannel = null
 let publicChannel = null
@@ -216,7 +217,7 @@ function renderConfigurationError() {
 }
 
 function renderSignIn(error = '') {
-  const doctorPortal = new URLSearchParams(window.location.search).get('portal') === 'doctor'
+  const doctorPortal = isDoctorPortal
   app.innerHTML = `<main class="auth-screen"><section class="auth-card auth-card-login"><a class="brand auth-brand" href="${appBase}"><span class="brand-mark">${icon('heart')}</span><span class="brand-copy"><strong>Medi<span>Q</span></strong><small>CARE, IN ORDER</small></span></a><p class="eyebrow">${doctorPortal ? 'DOCTOR PORTAL' : 'STAFF WORKSPACE'}</p><h1>${doctorPortal ? 'Doctor sign in' : 'Welcome back'}</h1><p>${doctorPortal ? 'Sign in with your doctor account to open your assigned dashboard.' : 'Sign in with your hospital staff account.'}</p>${error ? `<div class="auth-error" role="alert">${escapeHtml(error)}</div>` : ''}<form id="sign-in-form" class="auth-form"><label class="form-field"><span>Work email</span><input type="email" name="email" autocomplete="username" required placeholder="you@hospital.com"></label><label class="form-field"><span>Password</span><input type="password" name="password" autocomplete="current-password" required minlength="8" placeholder="Enter your password"></label><button class="button button-primary auth-submit" type="submit">Sign in</button></form><p class="auth-help">Staff accounts are provisioned by your MediQ administrator. Contact your administrator if you need access.</p></section></main>`
 }
 
@@ -987,7 +988,7 @@ if (isPublicRegistration) {
 } else if (isPublicDisplay) {
   renderPublicDisplay()
 } else {
-  const doctorPortalRequested = new URLSearchParams(window.location.search).get('portal') === 'doctor'
+  const doctorPortalRequested = isDoctorPortal
   if (doctorPortalRequested) renderSignIn()
   else renderLoading()
   supabase.auth.onAuthStateChange((event, session) => {
