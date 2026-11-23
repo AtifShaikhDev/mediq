@@ -419,10 +419,10 @@ function dashboardPage() {
       <div class="section-heading"><div><h2>Recent registrations</h2><p>Your latest patient check-ins</p></div><button class="link-button" data-page="Patients">View all patients ${icon('chevron')}</button></div>
       <div class="table-card"><div class="table-wrap"><table><thead><tr><th>PATIENT</th><th>DEPARTMENT</th><th>TOKEN</th><th>PRIORITY</th><th>STATUS</th><th>ARRIVAL</th></tr></thead><tbody>${patientRows(recent)}</tbody></table></div></div>
     </section>
-    <section class="section-block qr-share-section">
+    ${state.profile.role === 'Admin' ? `    <section class="section-block qr-share-section">
       <div class="section-heading"><div><h2>Patient self-registration QR</h2><p>Patients can scan this code to open MediQ registration on their phone.</p></div></div>
       <div class="qr-share-card"><div id="registration-qr" class="qr-code" role="img" aria-label="QR code for patient registration"></div><div><strong>Scan to join the queue</strong><p>Share this code at reception or display it in your waiting area. Do not use it for medical emergencies.</p><a class="text-button" href="${import.meta.env.BASE_URL}register" target="_blank" rel="noopener">Open registration page ${icon('arrow')}</a></div></div>
-    </section>
+    </section>` : ''}
     <div class="dashboard-bottom">
       <div class="info-note">${icon('heart')}<div><strong>A note on clinical priority</strong><p>Priority is set only by authorized clinical staff. MediQ does not diagnose or assign priority automatically.</p></div><button class="note-close" data-action="dismiss-note" aria-label="Dismiss note">${icon('close')}</button></div>
       <button class="public-shortcut" data-action="open-public-display">${icon('monitor')}<span><strong>Public queue display</strong><small>Token-only screen · opens without staff sign-in</small></span>${icon('chevron')}</button>
@@ -592,7 +592,7 @@ function renderModal() {
       const fields = `<div class="form-grid"><label class="form-field form-full"><span>Full name</span><input name="name" required maxlength="120" value="${escapeHtml(patient.name)}" ${canEdit ? '' : 'readonly'}></label><label class="form-field"><span>Age</span><input name="age" type="number" min="0" max="120" required value="${patient.age}" ${canEdit ? '' : 'readonly'}></label><label class="form-field"><span>Gender</span><select name="gender" ${canEdit ? '' : 'disabled'}>${['Female', 'Male', 'Non-binary', 'Prefer not to say'].map((gender) => `<option ${patient.gender === gender ? 'selected' : ''}>${gender}</option>`).join('')}</select></label><label class="form-field form-full"><span>Mobile number</span><input name="mobile" type="tel" required value="${escapeHtml(patient.mobile)}" ${canEdit ? '' : 'readonly'}></label></div>`
       content = `<div class="modal-heading"><div><p class="eyebrow">PATIENT PROFILE</p><h2>${escapeHtml(patient.name)}</h2><p>${escapeHtml(patient.id)} · Registered ${formatTime(patient.createdAt)}</p></div><button class="icon-button" data-action="close-modal" aria-label="Close dialog">${icon('close')}</button></div><div class="profile-summary"><span class="avatar avatar-soft avatar-large">${initials(patient.name)}</span><div><span class="token">${escapeHtml(patient.token || 'No visit')}</span>${patient.status ? `<span class="status-badge ${patient.status.toLowerCase()}"><i></i>${escapeHtml(patient.status)}</span>` : ''}</div></div>${canEdit ? `<form id="edit-patient-form" class="modal-form"><input type="hidden" name="patientUuid" value="${escapeHtml(patient.patientUuid)}">${fields}<div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Cancel</button><button type="submit" class="button button-primary">${icon('check')} Save profile</button></div></form>` : `<div class="modal-form">${fields}<div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Close</button></div></div>`}`
     }
-  } else if (state.modal.type === 'token-qr') {
+  } else if (state.modal.type === 'token-qr' && state.profile?.role === 'Admin') {
     const patientId = String(state.modal.patientId || '');
     const token = String(state.modal.token || '');
     const department = String(state.modal.department || '');
@@ -700,7 +700,7 @@ async function registerPatient(form) {
       return
     }
 
-    state.modal = { type: 'token-qr', patientId: result.patient_code, token: result.token, department: patient.departmentId ? state.departmentRows.find((row) => row.id === patient.departmentId)?.name || 'Department' : 'Department' }
+    state.modal = state.profile.role === 'Admin' ? { type: 'token-qr', patientId: result.patient_code, token: result.token, department: patient.departmentId ? state.departmentRows.find((row) => row.id === patient.departmentId)?.name || 'Department' : 'Department' } : null
     renderShell()
     renderModal()
     const successMessage = `Patient registered. Patient ID ${result.patient_code}; queue token ${result.token}.`
