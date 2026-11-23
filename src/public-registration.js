@@ -53,7 +53,6 @@ export function renderPublicRegistration(app, icon, client, registrationEnabled)
           <h2 id="registration-success-title">You’re in the queue</h2>
           <dl><div><dt>Patient ID</dt><dd data-patient-id></dd></div><div><dt>Queue token</dt><dd data-queue-token></dd></div></dl>
           <div class="registration-tracking-link"><strong>Track your queue</strong><p>Use this private link to see your live queue position. Keep it private.</p><a class="button button-primary" data-dashboard-link href="#">Open Patient Dashboard</a></div>
-          <div class="registration-token-qr"><strong>Save your queue token QR</strong><div id="public-token-qr" class="qr-code qr-code-large" role="img" aria-label="QR code containing patient ID and queue token"></div><small>This QR contains only your patient ID and token. Keep it private.</small></div>
           <button class="button button-secondary registration-reset" type="button">Register another patient</button>
         </section>
       </section>
@@ -218,12 +217,6 @@ export function renderPublicRegistration(app, icon, client, registrationEnabled)
     const dashboardUrl = new URL(`${import.meta.env.BASE_URL}patient`, window.location.origin)
     dashboardUrl.searchParams.set('access', dashboardToken)
     app.querySelector('[data-dashboard-link]').href = dashboardUrl.toString()
-    const qrRoot = app.querySelector('#public-token-qr')
-    if (qrRoot && typeof window.QRCode === 'function') {
-      new window.QRCode(qrRoot, { text: `MediQ patient dashboard\\n${dashboardUrl.toString()}`, width: 176, height: 176, correctLevel: window.QRCode.CorrectLevel.M })
-    } else if (qrRoot) {
-      qrRoot.textContent = 'QR generator unavailable. Please save your patient ID and token.'
-    }
     status.hidden = true
     form.hidden = true
     success.hidden = false
