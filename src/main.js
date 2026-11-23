@@ -6,7 +6,6 @@ import {
   loadPublicRegistrationRetentionStatus,
   loadWorkspace,
   registerPatient as createPatientRecord,
-  setQueuePriority,
   updateHospitalName,
   updatePatient,
   updateStaffProfile,
@@ -124,16 +123,10 @@ function averageWait(records) {
     : null
 }
 
-const priorityRank = { red: 0, yellow: 1, green: 2, none: 3 }
-function compareQueuePriority(a, b) {
-  return priorityRank[a.priority || 'none'] - priorityRank[b.priority || 'none']
-    || new Date(a.arrivalAt) - new Date(b.arrivalAt)
-}
-
 function sortedQueue(department) {
   return state.queues
     .filter((patient) => patient.department === department && patient.status === 'Waiting' && patient.queueDate === dateKey() && (state.profile?.role !== 'Doctor' || patient.doctorUserId === state.user.id))
-    .sort(compareQueuePriority)
+    .sort((a, b) => new Date(a.arrivalAt) - new Date(b.arrivalAt))
 }
 
 function escapeHtml(value = '') {
@@ -424,8 +417,7 @@ function patientRows(patients, compact = false) {
     <td><button class="patient-name" data-action="view-patient" data-id="${escapeHtml(patient.id)}"><span class="avatar avatar-soft">${initials(patient.name)}</span><span><strong>${escapeHtml(patient.name)}</strong><small>${escapeHtml(patient.id)}</small></span></button></td>
     ${compact ? '' : `<td>${escapeHtml(patient.department)}</td>`}
     <td><span class="token">${escapeHtml(patient.token || '—')}</span></td>
-    <td><span class="priority-badge ${patient.priority || 'none'}"><i></i>${patient.priority ? patient.priority[0].toUpperCase() + patient.priority.slice(1) : 'Not set'}</span></td>
-    <td>${patient.status ? `<span class="status-badge ${patient.status.toLowerCase()}"><i></i>${escapeHtml(patient.status)}</span>` : '—'}</td>
+        <td>${patient.status ? `<span class="status-badge ${patient.status.toLowerCase()}"><i></i>${escapeHtml(patient.status)}</span>` : '—'}</td>
     <td class="muted-cell">${formatTime(patient.createdAt)}</td>
   </tr>`).join('')
 }
@@ -457,12 +449,11 @@ function dashboardPage() {
     </section>
     <section class="section-block">
       <div class="section-heading"><div><h2>Recent registrations</h2><p>Your latest patient check-ins</p></div><button class="link-button" data-page="Patients">View all patients ${icon('chevron')}</button></div>
-      <div class="table-card"><div class="table-wrap"><table><thead><tr><th>PATIENT</th><th>DEPARTMENT</th><th>TOKEN</th><th>PRIORITY</th><th>STATUS</th><th>ARRIVAL</th></tr></thead><tbody>${patientRows(recent)}</tbody></table></div></div>
+      <div class="table-card"><div class="table-wrap"><table><thead><tr><th>PATIENT</th><th>DEPARTMENT</th><th>TOKEN</th><th>STATUS</th><th>ARRIVAL</th></tr></thead><tbody>${patientRows(recent)}</tbody></table></div></div>
     </section>
 
     <div class="dashboard-bottom">
-      <div class="info-note">${icon('heart')}<div><strong>A note on clinical priority</strong><p>MediQ automatically orders the queue by the priority assigned by authorized clinical staff, then by arrival time. Clinical priority is never diagnosed or assigned by software.</p></div><button class="note-close" data-action="dismiss-note" aria-label="Dismiss note">${icon('close')}</button></div>
-      <button class="public-shortcut" data-action="open-public-display">${icon('monitor')}<span><strong>Public queue display</strong><small>Token-only screen · opens without staff sign-in</small></span>${icon('chevron')}</button>
+            <button class="public-shortcut" data-action="open-public-display">${icon('monitor')}<span><strong>Public queue display</strong><small>Token-only screen · opens without staff sign-in</small></span>${icon('chevron')}</button>
     </div>`
 }
 
@@ -481,9 +472,9 @@ function doctorDashboardPage() {
     </div>
     <section class="section-block">
       <div class="section-heading"><div><h2>Your appointment queue</h2><p>Only patients registered with you are shown here.</p></div><button class="link-button" data-page="Queue Management">Open queue management ${icon('chevron')}</button></div>
-      <div class="table-card"><div class="table-wrap"><table><thead><tr><th>POSITION</th><th>PATIENT</th><th>TOKEN</th><th>PRIORITY</th><th>STATUS</th><th>ARRIVAL</th></tr></thead><tbody>
-      ${ordered.map((patient,index) => `<tr><td>${index+1}</td><td><strong>${escapeHtml(patient.name)}</strong><small>${escapeHtml(patient.id)}</small></td><td><strong>${escapeHtml(patient.token)}</strong></td><td><span class="priority-badge ${patient.priority || 'none'}"><i></i>${patient.priority ? ({ red: 'High', yellow: 'Medium', green: 'Low' }[patient.priority] || 'Not set') : 'Not set'}</span></td><td><span class="status-badge waiting">Waiting</span></td><td>${formatTime(patient.arrivalAt)}</td></tr>`).join('')}
-      ${serving ? `<tr><td>—</td><td><strong>Currently serving</strong></td><td><strong>${escapeHtml(serving.token)}</strong></td><td><span class="priority-badge ${serving.priority || 'none'}"><i></i>${serving.priority ? ({ red: 'High', yellow: 'Medium', green: 'Low' }[serving.priority] || 'Not set') : 'Not set'}</span></td><td><span class="status-badge serving">Serving</span></td><td>${formatTime(serving.arrivalAt)}</td></tr>` : ''}
+      <div class="table-card"><div class="table-wrap"><table><thead><tr><th>POSITION</th><th>PATIENT</th><th>TOKEN</th><th>STATUS</th><th>ARRIVAL</th></tr></thead><tbody>
+      ${ordered.map((patient,index) => `<tr><td>${index+1}</td><td><strong>${escapeHtml(patient.name)}</strong><small>${escapeHtml(patient.id)}</small></td><td><strong>${escapeHtml(patient.token)}</strong></td><td><span class="status-badge waiting">Waiting</span></td><td>${formatTime(patient.arrivalAt)}</td></tr>`).join('')}
+      ${serving ? `<tr><td>—</td><td><strong>Currently serving</strong></td><td><strong>${escapeHtml(serving.token)}</strong></td><td><span class="status-badge serving">Serving</span></td><td>${formatTime(serving.arrivalAt)}</td></tr>` : ''}
       ${!ordered.length && !serving ? '<tr><td colspan="6">No appointments assigned for today.</td></tr>' : ''}
       </tbody></table></div></div>
     </section>`
@@ -512,22 +503,20 @@ function patientsPage() {
 }
 
 function queuePage() {
-  const canSetPriority = ['Admin', 'Doctor', 'Nurse'].includes(state.profile.role)
   const canComplete = ['Admin', 'Doctor', 'Nurse'].includes(state.profile.role)
   const canRegister = ['Admin', 'Receptionist'].includes(state.profile.role)
   return `${pageHeading('Queue management', 'Coordinate patient flow across every department.', `<button class="button button-secondary" data-action="open-public-display">${icon('monitor')} Public display</button>${canRegister ? `<button class="button button-primary" data-action="open-register">${icon('plus')} Add to queue</button>` : ''}`)}
-    <div class="queue-notice">${icon('heart')} <span>Clinical priority is set by authorized staff only. Waiting patients are automatically ordered by assigned clinical priority, then arrival time. Priority is never assigned by software.</span></div>
     <div class="queue-departments">${departments.map((department, index) => {
       const queue = sortedQueue(department)
       const serving = state.queues.find((patient) => patient.department === department && patient.status === 'Serving' && patient.queueDate === dateKey() && (state.profile.role !== 'Doctor' || patient.doctorUserId === state.user.id))
       const code = state.departmentRows.find((item) => item.name === department)?.code || ''
       return `<section class="queue-card"><div class="queue-card-heading"><div><span class="department-chip ${['blue', 'rose', 'violet'][index]}">${code}</span><div><h2>${department}</h2><p>${queue.length} waiting · ${serving ? '1 being served' : 'No patient serving'}</p></div></div><button class="button button-primary button-small" data-action="call-next" data-department="${department}" ${!queue.length ? 'disabled' : ''}>Call next ${icon('arrow')}</button></div>
         ${serving ? `<div class="serving-banner"><span class="live-dot"></span><span>NOW SERVING</span><strong>${escapeHtml(serving.token)}</strong><em>Patient checked in at ${formatTime(serving.arrivalAt)}</em>${canComplete ? `<button class="button button-small button-done" data-action="complete-patient" data-id="${serving.queueId}">${icon('check')} Complete</button>` : ''}</div>` : ''}
-        ${queue.length ? `<div class="queue-list">${queue.map((patient, indexInQueue) => `<div class="queue-row"><span class="queue-position">${pad(indexInQueue + 1)}</span><span class="token queue-token">${escapeHtml(patient.token)}</span><div class="queue-patient"><strong>${escapeHtml(patient.name)}</strong><small>${escapeHtml(patient.id)} · Arrived ${formatTime(patient.arrivalAt)}</small></div><span class="priority-badge ${patient.priority || 'none'}"><i></i>${patient.priority ? patient.priority[0].toUpperCase() + patient.priority.slice(1) : 'Not set'}</span>${canSetPriority ? `<label class="priority-select"><span class="sr-only">Set clinical priority for ${escapeHtml(patient.name)}</span><select data-priority-id="${patient.queueId}" aria-label="Set priority for ${escapeHtml(patient.name)}"><option value="" ${!patient.priority ? 'selected' : ''}>Set priority</option><option value="red" ${patient.priority === 'red' ? 'selected' : ''}>Red · High</option><option value="yellow" ${patient.priority === 'yellow' ? 'selected' : ''}>Yellow · Medium</option><option value="green" ${patient.priority === 'green' ? 'selected' : ''}>Green · Low</option></select></label>` : '<span class="permission-hint">Clinical staff only</span>'}<button class="icon-button row-action" data-action="start-serving" data-id="${patient.queueId}" aria-label="Call next patient in this department">${icon('arrow')}</button></div>`).join('')}</div>` : `<div class="queue-empty"><span>${icon('check')}</span><strong>All caught up</strong><small>No patients are waiting in this queue.</small></div>`}
+        ${queue.length ? `<div class="queue-list">${queue.map((patient, indexInQueue) => `<div class="queue-row"><span class="queue-position">${pad(indexInQueue + 1)}</span><span class="token queue-token">${escapeHtml(patient.token)}</span><div class="queue-patient"><strong>${escapeHtml(patient.name)}</strong><small>${escapeHtml(patient.id)} · Arrived ${formatTime(patient.arrivalAt)}</small></div><button class="icon-button row-action" data-action="start-serving" data-id="${patient.queueId}" aria-label="Call next patient in this department">${icon('arrow')}</button></div>`).join('')}</div>` : `<div class="queue-empty"><span>${icon('check')}</span><strong>All caught up</strong><small>No patients are waiting in this queue.</small></div>`}
         <div class="queue-footnote">Last token issued today: <strong>${state.queues.filter((patient) => patient.department === department && patient.queueDate === dateKey() && (state.profile.role !== 'Doctor' || patient.doctorUserId === state.user.id)).map((patient) => patient.token).sort().slice(-1)[0] || '—'}</strong></div>
       </section>`
     }).join('')}</div>
-    <div class="priority-legend"><strong>Priority guide</strong><span class="priority-badge red"><i></i>Red · High</span><span class="priority-badge yellow"><i></i>Yellow · Medium</span><span class="priority-badge green"><i></i>Green · Low</span><small>Only assigned by authorized clinical staff</small></div>`
+`
 }
 
 function staffPage() {
@@ -805,22 +794,12 @@ async function callNext(departmentName) {
   }
 }
 
-async function setPriority(queueId, priority) {
-  try {
-    await setQueuePriority(supabase, queueId, priority)
-    await refreshWorkspace()
-    showToast(priority ? `Priority updated to ${priority}.` : 'Priority cleared.')
-  } catch (error) {
-    showToast(`Priority update failed: ${error.message}`, 'error')
-    await refreshWorkspace()
-  }
-}
 
 function exportReport() {
-  const rows = [['Patient ID', 'Patient', 'Department', 'Token', 'Priority', 'Status', 'Arrival']]
+  const rows = [['Patient ID', 'Patient', 'Department', 'Token', 'Status', 'Arrival']]
   todayPatients().forEach((patient) => rows.push([
     patient.id, patient.name, patient.department, patient.token,
-    patient.priority || 'Not set', patient.status, formatTime(patient.arrivalAt),
+    patient.status, formatTime(patient.arrivalAt),
   ]))
   const csv = rows.map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(',')).join('\r\n')
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }))
@@ -933,7 +912,6 @@ app.addEventListener('change', (event) => {
       : '<option value="">No active doctors in this department</option>'
     doctorSelect.disabled = doctors.length === 0
   }
-  if (event.target.dataset.priorityId) setPriority(event.target.dataset.priorityId, event.target.value)
 })
 
 app.addEventListener('submit', (event) => {
