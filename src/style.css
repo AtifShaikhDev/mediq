@@ -157,6 +157,8 @@ tbody tr:hover { background: #fbfdfe; }
 .patient-name strong { color: #40576a; font-size: 10px; font-weight: 700; }
 .patient-name small { color: #9aa7b0; font-size: 8px; }
 .token { display: inline-flex; color: #3a78a0; background: #eef6fa; padding: 4px 7px; border-radius: 5px; font-size: 9px; font-weight: 700; letter-spacing: .15px; }
+.status-badge { display: inline-flex; align-items: center; gap: 5px; border-radius: 20px; padding: 4px 7px; font-size: 8px; font-weight: 600; }
+.status-badge i { width: 5px; height: 5px; display: inline-block; border-radius: 50%; }
 .status-badge.waiting { background: #fff8e9; color: #bd8c36; }
 .status-badge.waiting i { background: #e5b64e; }
 .status-badge.serving { background: #eaf5fc; color: #3c88b6; }
