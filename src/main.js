@@ -990,7 +990,18 @@ if (isPublicRegistration) {
   renderLoading()
   supabase.auth.onAuthStateChange((event, session) => {
     window.setTimeout(() => {
+      const doctorPortalRequested = new URLSearchParams(window.location.search).get('portal') === 'doctor'
+      if (doctorPortalRequested && event === 'INITIAL_SESSION') {
+        // Show doctor sign-in even if this browser already has an Admin session.
+        renderSignIn(state.authError)
+        return
+      }
       if (session?.user) {
+        if (doctorPortalRequested && event === 'SIGNED_IN') {
+          const cleanUrl = new URL(window.location.href)
+          cleanUrl.searchParams.delete('portal')
+          window.history.replaceState({}, '', cleanUrl)
+        }
         loadSignedInWorkspace(session.user)
       } else {
         stopWorkspaceRealtime()
