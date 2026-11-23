@@ -216,7 +216,8 @@ function renderConfigurationError() {
 }
 
 function renderSignIn(error = '') {
-  app.innerHTML = `<main class="auth-screen"><section class="auth-card auth-card-login"><a class="brand auth-brand" href="${appBase}"><span class="brand-mark">${icon('heart')}</span><span class="brand-copy"><strong>Medi<span>Q</span></strong><small>CARE, IN ORDER</small></span></a><p class="eyebrow">STAFF WORKSPACE</p><h1>Welcome back</h1><p>Sign in with your hospital staff account.</p>${error ? `<div class="auth-error" role="alert">${escapeHtml(error)}</div>` : ''}<form id="sign-in-form" class="auth-form"><label class="form-field"><span>Work email</span><input type="email" name="email" autocomplete="username" required placeholder="you@hospital.com"></label><label class="form-field"><span>Password</span><input type="password" name="password" autocomplete="current-password" required minlength="8" placeholder="Enter your password"></label><button class="button button-primary auth-submit" type="submit">Sign in</button></form><p class="auth-help">Staff accounts are provisioned by your MediQ administrator. Contact your administrator if you need access.</p></section></main>`
+  const doctorPortal = new URLSearchParams(window.location.search).get('portal') === 'doctor'
+  app.innerHTML = `<main class="auth-screen"><section class="auth-card auth-card-login"><a class="brand auth-brand" href="${appBase}"><span class="brand-mark">${icon('heart')}</span><span class="brand-copy"><strong>Medi<span>Q</span></strong><small>CARE, IN ORDER</small></span></a><p class="eyebrow">${doctorPortal ? 'DOCTOR PORTAL' : 'STAFF WORKSPACE'}</p><h1>${doctorPortal ? 'Doctor sign in' : 'Welcome back'}</h1><p>${doctorPortal ? 'Sign in with your doctor account to open your assigned dashboard.' : 'Sign in with your hospital staff account.'}</p>${error ? `<div class="auth-error" role="alert">${escapeHtml(error)}</div>` : ''}<form id="sign-in-form" class="auth-form"><label class="form-field"><span>Work email</span><input type="email" name="email" autocomplete="username" required placeholder="you@hospital.com"></label><label class="form-field"><span>Password</span><input type="password" name="password" autocomplete="current-password" required minlength="8" placeholder="Enter your password"></label><button class="button button-primary auth-submit" type="submit">Sign in</button></form><p class="auth-help">Staff accounts are provisioned by your MediQ administrator. Contact your administrator if you need access.</p></section></main>`
 }
 
 function renderProfileMissing() {
@@ -422,7 +423,9 @@ function dashboardPage() {
     ${state.profile.role === 'Admin' ? `    <section class="section-block qr-share-section">
       <div class="section-heading"><div><h2>Patient self-registration QR</h2><p>Patients can scan this code to open MediQ registration on their phone.</p></div></div>
       <div class="qr-share-card"><div id="registration-qr" class="qr-code" role="img" aria-label="QR code for patient registration"></div><div><strong>Scan to join the queue</strong><p>Share this code at reception or display it in your waiting area. Do not use it for medical emergencies.</p><a class="text-button" href="${import.meta.env.BASE_URL}register" target="_blank" rel="noopener">Open registration page ${icon('arrow')}</a></div></div>
-    </section>` : ''}
+      <div class="section-heading doctor-qr-heading"><div><h2>Doctor dashboard login QR</h2><p>Doctors can scan this code to open the secure doctor sign-in page.</p></div></div>
+      <div class="qr-share-card doctor-login-qr-card"><div id="doctor-login-qr" class="qr-code" role="img" aria-label="QR code for doctor dashboard login"></div><div><strong>Scan to open Doctor Login</strong><p>Each doctor must sign in using their own MediQ work email and password. This QR code does not contain login credentials or bypass authentication.</p><a class="text-button" href="${window.location.origin}${import.meta.env.BASE_URL}?portal=doctor" target="_blank" rel="noopener">Open doctor login page ${icon('arrow')}</a></div></div>
+    </section>` : ''
     <div class="dashboard-bottom">
       <div class="info-note">${icon('heart')}<div><strong>A note on clinical priority</strong><p>Priority is set only by authorized clinical staff. MediQ does not diagnose or assign priority automatically.</p></div><button class="note-close" data-action="dismiss-note" aria-label="Dismiss note">${icon('close')}</button></div>
       <button class="public-shortcut" data-action="open-public-display">${icon('monitor')}<span><strong>Public queue display</strong><small>Token-only screen · opens without staff sign-in</small></span>${icon('chevron')}</button>
@@ -573,6 +576,12 @@ function renderPage() {
   document.querySelector('.breadcrumb strong').textContent = state.page
   const registrationQr = document.querySelector('#registration-qr')
   if (registrationQr) drawQrCode(registrationQr, `${window.location.origin}${import.meta.env.BASE_URL}register`)
+  const doctorLoginQr = document.querySelector('#doctor-login-qr')
+  if (doctorLoginQr) {
+    const doctorLoginUrl = new URL(import.meta.env.BASE_URL, window.location.origin)
+    doctorLoginUrl.searchParams.set('portal', 'doctor')
+    drawQrCode(doctorLoginQr, doctorLoginUrl.toString())
+  }
 }
 
 function renderModal() {
