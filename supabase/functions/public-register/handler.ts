@@ -22,12 +22,14 @@ export type PublicRegistrationDependencies = {
 }
 
 function allowedOrigins(getEnv: PublicRegistrationDependencies['getEnv']) {
-  return new Set(
-    (getEnv('PUBLIC_REGISTRATION_ORIGINS') || '')
-      .split(',')
-      .map((origin) => origin.trim())
-      .filter(Boolean),
-  )
+  const configured = (getEnv('PUBLIC_REGISTRATION_ORIGINS') || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean)
+
+  // GitHub Pages sends the site origin without its repository path.
+  configured.push('https://atifshaikhdev.github.io')
+  return new Set(configured)
 }
 
 function responseHeaders(origin: string) {
