@@ -987,15 +987,14 @@ if (isPublicRegistration) {
 } else if (isPublicDisplay) {
   renderPublicDisplay()
 } else {
-  renderLoading()
+  const doctorPortalRequested = new URLSearchParams(window.location.search).get('portal') === 'doctor'
+  if (doctorPortalRequested) renderSignIn()
+  else renderLoading()
   supabase.auth.onAuthStateChange((event, session) => {
     window.setTimeout(() => {
-      const doctorPortalRequested = new URLSearchParams(window.location.search).get('portal') === 'doctor'
-      if (doctorPortalRequested && event === 'INITIAL_SESSION') {
-        // Show doctor sign-in even if this browser already has an Admin session.
-        renderSignIn(state.authError)
-        return
-      }
+      // Never hydrate an existing Admin session on the doctor QR route.
+      // Only an explicit sign-in action should enter the workspace.
+      if (doctorPortalRequested && event !== 'SIGNED_IN') return
       if (session?.user) {
         if (doctorPortalRequested && event === 'SIGNED_IN') {
           const cleanUrl = new URL(window.location.href)
