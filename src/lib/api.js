@@ -103,6 +103,7 @@ export async function registerPatient(client, patient) {
     p_gender: patient.gender,
     p_mobile: patient.mobile,
     p_department_id: patient.departmentId,
+    p_doctor_user_id: patient.doctorUserId,
   })
   return unwrap(result)?.[0]
 }
