@@ -534,7 +534,7 @@ function renderModal() {
   let content = ''
   if (state.modal.type === 'register') {
     content = `<div class="modal-heading"><div><p class="eyebrow">NEW CHECK-IN</p><h2>Register a patient</h2><p>Enter patient details to create a queue token.</p></div><button class="icon-button" data-action="close-modal" aria-label="Close dialog">${icon('close')}</button></div>
-    <form id="register-form" class="modal-form"><div class="form-grid"><label class="form-field form-full"><span>Full name <b>*</b></span><input name="name" required maxlength="120" placeholder="Patient full name"></label><label class="form-field"><span>Age <b>*</b></span><input name="age" type="number" min="0" max="120" required placeholder="Age"></label><label class="form-field"><span>Gender <b>*</b></span><select name="gender" required><option value="">Select gender</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></label><label class="form-field form-full"><span>Mobile number <b>*</b></span><input name="mobile" type="tel" inputmode="tel" required placeholder="+91 98765 43210"></label><label class="form-field form-full"><span>Department <b>*</b></span><select name="departmentId" required><option value="">Choose a department</option>${state.departmentRows.map((department) => `<option value="${department.id}">${escapeHtml(department.name)}</option>`).join('')}</select></label></div><div class="form-guidance">${icon('heart')} Daily token assignment is atomic in PostgreSQL. Clinical priority is never assigned during registration.</div><div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Cancel</button><button type="submit" class="button button-primary">${icon('plus')} Register patient</button></div></form>`
+    <form id="register-form" class="modal-form"><div class="form-grid"><label class="form-field form-full"><span>Full name <b>*</b></span><input name="name" required maxlength="120" placeholder="Patient full name"></label><label class="form-field"><span>Age <b>*</b></span><input name="age" type="number" min="0" max="120" required placeholder="Age"></label><label class="form-field"><span>Gender <b>*</b></span><select name="gender" required><option value="">Select gender</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></label><label class="form-field form-full"><span>Mobile number <b>*</b></span><input name="mobile" type="tel" inputmode="tel" required placeholder="+91 98765 43210"></label><label class="form-field form-full"><span>Department <b>*</b></span><select name="departmentId" required><option value="">Choose a department</option>${state.departmentRows.map((department) => `<option value="${department.id}">${escapeHtml(department.name)}</option>`).join('')}</select></label><label class="form-field form-full"><span>Select doctor <b>*</b></span><select name="doctorUserId" required disabled><option value="">Choose a department first</option></select></label></div><div class="form-guidance">${icon('heart')} Daily token assignment is atomic in PostgreSQL. Clinical priority is never assigned during registration.</div><div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Cancel</button><button type="submit" class="button button-primary">${icon('plus')} Register patient</button></div></form>`
   } else if (state.modal.type === 'profile') {
     const patient = state.patients.find((item) => item.id === state.modal.id)
     if (patient) {
@@ -625,8 +625,15 @@ async function registerPatient(form) {
     gender: String(data.get('gender')),
     mobile: String(data.get('mobile')).trim(),
     departmentId: String(data.get('departmentId')),
+    doctorUserId: String(data.get('doctorUserId')),
   }
-  if (!patient.name || !validMobile(patient.mobile) || !state.departmentRows.some((department) => department.id === patient.departmentId) || !Number.isInteger(patient.age) || patient.age < 0 || patient.age > 120) {
+  const selectedDoctor = state.staff.find((member) =>
+    member.id === patient.doctorUserId
+    && member.role === 'Doctor'
+    && member.active
+    && member.departmentId === patient.departmentId
+  )
+  if (!patient.name || !validMobile(patient.mobile) || !state.departmentRows.some((department) => department.id === patient.departmentId) || !selectedDoctor || !Number.isInteger(patient.age) || patient.age < 0 || patient.age > 120) {
     showToast('Please check the patient details and try again.', 'error')
     return
   }
@@ -824,6 +831,19 @@ app.addEventListener('input', (event) => {
 app.addEventListener('change', (event) => {
   if (event.target.id === 'patient-status-filter') { state.patientFilter = event.target.value; renderPage() }
   if (event.target.id === 'department-filter') { state.departmentFilter = event.target.value; renderPage() }
+  if (event.target.name === 'departmentId' && event.target.form?.id === 'register-form') {
+    const doctorSelect = event.target.form.elements.doctorUserId
+    const departmentId = event.target.value
+    const doctors = state.staff.filter((member) =>
+      member.role === 'Doctor' && member.active && member.departmentId === departmentId
+    )
+    doctorSelect.innerHTML = doctors.length
+      ? '<option value="">Choose a doctor</option>' + doctors.map((doctor) =>
+        `<option value="${escapeHtml(doctor.id)}">${escapeHtml(doctor.name)}</option>`
+      ).join('')
+      : '<option value="">No active doctors in this department</option>'
+    doctorSelect.disabled = doctors.length === 0
+  }
   if (event.target.dataset.priorityId) setPriority(event.target.dataset.priorityId, event.target.value)
 })
 
