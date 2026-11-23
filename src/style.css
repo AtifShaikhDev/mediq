@@ -157,16 +157,6 @@ tbody tr:hover { background: #fbfdfe; }
 .patient-name strong { color: #40576a; font-size: 10px; font-weight: 700; }
 .patient-name small { color: #9aa7b0; font-size: 8px; }
 .token { display: inline-flex; color: #3a78a0; background: #eef6fa; padding: 4px 7px; border-radius: 5px; font-size: 9px; font-weight: 700; letter-spacing: .15px; }
-.priority-badge, .status-badge { display: inline-flex; align-items: center; gap: 5px; border-radius: 20px; padding: 4px 7px; font-size: 8px; font-weight: 600; }
-.priority-badge i, .status-badge i { width: 5px; height: 5px; display: inline-block; border-radius: 50%; }
-.priority-badge.red { background: #fff0ef; color: #d36464; }
-.priority-badge.red i { background: #e66c6c; }
-.priority-badge.yellow { background: #fff8e9; color: #c69239; }
-.priority-badge.yellow i { background: #e9b74e; }
-.priority-badge.green { background: #ecf8f2; color: #419a79; }
-.priority-badge.green i { background: #51b38a; }
-.priority-badge.none { background: #f1f4f6; color: #8998a4; }
-.priority-badge.none i { background: #aab5bd; }
 .status-badge.waiting { background: #fff8e9; color: #bd8c36; }
 .status-badge.waiting i { background: #e5b64e; }
 .status-badge.serving { background: #eaf5fc; color: #3c88b6; }
@@ -233,7 +223,6 @@ tbody tr:hover { background: #fbfdfe; }
 .queue-patient { display: flex; flex-direction: column; gap: 4px; min-width: 125px; flex: 1; }
 .queue-patient strong { color: #4c6273; font-size: 10px; }
 .queue-patient small { color: #9aa7b1; font-size: 8px; }
-.priority-select select { max-width: 105px; padding: 6px 5px; color: #6f8391; border: 1px solid #e8edf1; border-radius: 5px; font-size: 8px; background: white; }
 .permission-hint { color: #a3afb7; font-size: 8px; }
 .row-action { width: 27px; height: 27px; border: 1px solid #e7edf1; }
 .row-action .icon { width: 14px; height: 14px; }
@@ -244,9 +233,6 @@ tbody tr:hover { background: #fbfdfe; }
 .queue-empty small { font-size: 9px; }
 .queue-footnote { border-top: 1px solid #f0f3f5; padding: 9px 16px; color: #9aa7b1; font-size: 8px; }
 .queue-footnote strong { color: #6e8492; }
-.priority-legend { display: flex; gap: 10px; align-items: center; margin-top: 15px; padding: 11px 14px; background: #fff; border: 1px solid #e8eef3; border-radius: 8px; }
-.priority-legend > strong { color: #617889; font-size: 9px; margin-right: 3px; }
-.priority-legend small { color: #a0adb6; margin-left: auto; font-size: 8px; }
 
 .staff-summary { padding: 12px 16px; gap: 0; }
 .staff-summary-card { margin-right: auto; }
@@ -521,15 +507,10 @@ tbody tr:hover { background: #fbfdfe; }
   .queue-row { gap: 7px; padding: 8px 10px; flex-wrap: wrap; }
   .queue-position { width: 13px; }
   .queue-patient { min-width: 110px; }
-  .queue-row .priority-badge { order: 4; margin-left: 20px; }
-  .priority-select { order: 5; }
-  .priority-select select { max-width: 110px; }
   .permission-hint { order: 5; }
   .row-action { margin-left: auto; }
   .serving-banner { margin: 10px 10px 2px; flex-wrap: wrap; }
   .serving-banner em { order: 5; width: 100%; padding-left: 18px; }
-  .priority-legend { flex-wrap: wrap; gap: 7px; }
-  .priority-legend small { width: 100%; margin-left: 0; }
   .staff-summary { gap: 10px; padding: 10px; flex-wrap: wrap; }
   .staff-summary-card { width: 100%; padding-bottom: 8px; border-bottom: 1px solid #edf1f4; }
   .staff-role-count { flex: 1; margin: 0; padding-left: 8px; border: 0; }
