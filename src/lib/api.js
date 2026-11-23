@@ -240,3 +240,8 @@ export async function loadPublicQueue(client) {
     .order('department_name')
   return unwrap(result)
 }
+
+export async function loadPublicPatientTracking(client, accessToken) {
+  const result = await client.rpc('get_public_patient_tracking', { p_access_token: accessToken })
+  return unwrap(result)?.[0] || (() => { throw new Error('Patient tracking is unavailable.') })()
+}
