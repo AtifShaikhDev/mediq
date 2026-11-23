@@ -254,9 +254,7 @@ async function handleRequest(
     return jsonResponse(origin, { error: 'Registration is temporarily unavailable.' }, 503)
   }
 
-  const dashboardBytes = new Uint8Array(32)
-  crypto.getRandomValues(dashboardBytes)
-  const dashboardToken = Array.from(dashboardBytes, (byte) => byte.toString(16).padStart(2, '0')).join('')
+  const dashboardToken = await hmacHex(fingerprintSecret, `dashboard:${idempotencyKey}`)
   const dashboardTokenHashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(dashboardToken))
   const dashboardTokenHash = Array.from(new Uint8Array(dashboardTokenHashBuffer), (byte) => byte.toString(16).padStart(2, '0')).join('')
 
