@@ -263,6 +263,7 @@ async function handleRequest(
     p_gender: registration.gender,
     p_mobile: registration.mobile,
     p_department_name: registration.department,
+    p_doctor_user_id: registration.doctorUserId,
   })
 
   if (error) return rpcErrorResponse(origin, error.code || null, dependencies.logError)
