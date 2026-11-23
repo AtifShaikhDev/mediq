@@ -120,7 +120,7 @@ function averageWait(records) {
 function sortedQueue(department) {
   const priorityRank = { red: 0, yellow: 1, green: 2, none: 3 }
   return state.queues
-    .filter((patient) => patient.department === department && patient.status === 'Waiting' && patient.queueDate === dateKey())
+    .filter((patient) => patient.department === department && patient.status === 'Waiting' && patient.queueDate === dateKey() && (state.profile?.role !== 'Doctor' || patient.doctorUserId === state.user.id))
     .sort((a, b) => priorityRank[a.priority || 'none'] - priorityRank[b.priority || 'none'] || new Date(a.arrivalAt) - new Date(b.arrivalAt))
 }
 
@@ -346,7 +346,7 @@ function metricCard(title, value, note, iconName, tone, change) {
 
 function departmentCard(department, code, iconName, tone) {
   const queue = sortedQueue(department)
-  const serving = state.queues.find((patient) => patient.department === department && patient.status === 'Serving' && patient.queueDate === dateKey())
+  const serving = state.queues.find((patient) => patient.department === department && patient.status === 'Serving' && patient.queueDate === dateKey() && (state.profile.role !== 'Doctor' || patient.doctorUserId === state.user.id))
   const total = todayPatients().filter((patient) => patient.department === department).length
   const average = averageWait(todayPatients().filter((patient) => patient.department === department))
   return `<article class="department-card">
@@ -372,6 +372,7 @@ function patientRows(patients, compact = false) {
 }
 
 function dashboardPage() {
+  if (state.profile.role === 'Doctor') return doctorDashboardPage()
   const metric = stats()
   const recent = [...todayPatients()].sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt)).slice(0, 5)
   const canRegister = ['Admin', 'Receptionist'].includes(state.profile.role)
@@ -400,6 +401,29 @@ function dashboardPage() {
       <div class="info-note">${icon('heart')}<div><strong>A note on clinical priority</strong><p>Priority is set only by authorized clinical staff. MediQ does not diagnose or assign priority automatically.</p></div><button class="note-close" data-action="dismiss-note" aria-label="Dismiss note">${icon('close')}</button></div>
       <button class="public-shortcut" data-action="open-public-display">${icon('monitor')}<span><strong>Public queue display</strong><small>Token-only screen · opens without staff sign-in</small></span>${icon('chevron')}</button>
     </div>`
+}
+
+function doctorDashboardPage() {
+  const mine = todayPatients().filter((item) => item.doctorUserId === state.user.id)
+  const waiting = mine.filter((item) => item.status === 'Waiting')
+  const serving = mine.find((item) => item.status === 'Serving')
+  const completed = mine.filter((item) => item.status === 'Completed')
+  const ordered = [...waiting].sort((a, b) => new Date(a.arrivalAt) - new Date(b.arrivalAt))
+  return `${pageHeading('Doctor dashboard', 'Your assigned appointments and live queue status.', '')}
+    <div class="metric-grid">
+      ${metricCard('Assigned today', mine.length, 'your appointments', 'users', 'blue', 'Today')}
+      ${metricCard('Patients waiting', waiting.length, 'in your queue', 'clock', 'amber', 'Live')}
+      ${metricCard('Currently serving', serving ? serving.token : '—', 'your active patient', 'heart', 'teal', 'Live')}
+      ${metricCard('Completed', completed.length, 'visits today', 'check', 'green', 'Today')}
+    </div>
+    <section class="section-block">
+      <div class="section-heading"><div><h2>Your appointment queue</h2><p>Only patients registered with you are shown here.</p></div><button class="link-button" data-page="Queue Management">Open queue management ${icon('chevron')}</button></div>
+      <div class="table-card"><div class="table-wrap"><table><thead><tr><th>POSITION</th><th>PATIENT</th><th>TOKEN</th><th>STATUS</th><th>ARRIVAL</th></tr></thead><tbody>
+      ${ordered.map((patient,index) => `<tr><td>${index+1}</td><td><strong>${escapeHtml(patient.name)}</strong><small>${escapeHtml(patient.id)}</small></td><td><strong>${escapeHtml(patient.token)}</strong></td><td><span class="status-badge waiting">Waiting</span></td><td>${formatTime(patient.arrivalAt)}</td></tr>`).join('')}
+      ${serving ? `<tr><td>—</td><td><strong>Currently serving</strong></td><td><strong>${escapeHtml(serving.token)}</strong></td><td><span class="status-badge serving">Serving</span></td><td>${formatTime(serving.arrivalAt)}</td></tr>` : ''}
+      ${!ordered.length && !serving ? '<tr><td colspan="5">No appointments assigned for today.</td></tr>' : ''}
+      </tbody></table></div></div>
+    </section>`
 }
 
 function greeting() {
@@ -437,7 +461,7 @@ function queuePage() {
       return `<section class="queue-card"><div class="queue-card-heading"><div><span class="department-chip ${['blue', 'rose', 'violet'][index]}">${code}</span><div><h2>${department}</h2><p>${queue.length} waiting · ${serving ? '1 being served' : 'No patient serving'}</p></div></div><button class="button button-primary button-small" data-action="call-next" data-department="${department}" ${!queue.length ? 'disabled' : ''}>Call next ${icon('arrow')}</button></div>
         ${serving ? `<div class="serving-banner"><span class="live-dot"></span><span>NOW SERVING</span><strong>${escapeHtml(serving.token)}</strong><em>Patient checked in at ${formatTime(serving.arrivalAt)}</em>${canComplete ? `<button class="button button-small button-done" data-action="complete-patient" data-id="${serving.queueId}">${icon('check')} Complete</button>` : ''}</div>` : ''}
         ${queue.length ? `<div class="queue-list">${queue.map((patient, indexInQueue) => `<div class="queue-row"><span class="queue-position">${pad(indexInQueue + 1)}</span><span class="token queue-token">${escapeHtml(patient.token)}</span><div class="queue-patient"><strong>${escapeHtml(patient.name)}</strong><small>${escapeHtml(patient.id)} · Arrived ${formatTime(patient.arrivalAt)}</small></div><span class="priority-badge ${patient.priority || 'none'}"><i></i>${patient.priority ? patient.priority[0].toUpperCase() + patient.priority.slice(1) : 'Not set'}</span>${canSetPriority ? `<label class="priority-select"><span class="sr-only">Set clinical priority for ${escapeHtml(patient.name)}</span><select data-priority-id="${patient.queueId}" aria-label="Set priority for ${escapeHtml(patient.name)}"><option value="" ${!patient.priority ? 'selected' : ''}>Set priority</option><option value="red" ${patient.priority === 'red' ? 'selected' : ''}>Red · High</option><option value="yellow" ${patient.priority === 'yellow' ? 'selected' : ''}>Yellow · Medium</option><option value="green" ${patient.priority === 'green' ? 'selected' : ''}>Green · Low</option></select></label>` : '<span class="permission-hint">Clinical staff only</span>'}<button class="icon-button row-action" data-action="start-serving" data-id="${patient.queueId}" aria-label="Call next patient in this department">${icon('arrow')}</button></div>`).join('')}</div>` : `<div class="queue-empty"><span>${icon('check')}</span><strong>All caught up</strong><small>No patients are waiting in this queue.</small></div>`}
-        <div class="queue-footnote">Last token issued today: <strong>${state.queues.filter((patient) => patient.department === department && patient.queueDate === dateKey()).map((patient) => patient.token).sort().slice(-1)[0] || '—'}</strong></div>
+        <div class="queue-footnote">Last token issued today: <strong>${state.queues.filter((patient) => patient.department === department && patient.queueDate === dateKey() && (state.profile.role !== 'Doctor' || patient.doctorUserId === state.user.id)).map((patient) => patient.token).sort().slice(-1)[0] || '—'}</strong></div>
       </section>`
     }).join('')}</div>
     <div class="priority-legend"><strong>Priority guide</strong><span class="priority-badge red"><i></i>Red · High</span><span class="priority-badge yellow"><i></i>Yellow · Medium</span><span class="priority-badge green"><i></i>Green · Low</span><small>Only assigned by authorized clinical staff</small></div>`
