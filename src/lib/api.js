@@ -236,3 +236,94 @@ export async function loadPublicPatientTracking(client, accessToken) {
   const result = await client.rpc('get_public_patient_tracking', { p_access_token: accessToken })
   return unwrap(result)?.[0] || (() => { throw new Error('Patient tracking is unavailable.') })()
 }
+
+
+export async function loadPatientMedicalRecord(client, patientId) {
+  const [patientResult, visitsResult, notesResult, reportsResult, documentsResult] = await Promise.all([
+    client.from('patients').select('id,patient_code,full_name,age,gender,mobile,created_at').eq('id', patientId).single(),
+    client.from('visits').select('id,patient_id,department_id,status,arrived_at,started_at,completed_at,doctor_user_id,department:departments(name)').eq('patient_id', patientId).order('arrived_at', { ascending: false }),
+    client.from('patient_medical_notes').select('id,visit_id,author_user_id,category,title,content,visibility,created_at,updated_at').eq('patient_id', patientId).order('created_at', { ascending: false }),
+    client.from('doctor_reports').select('id,visit_id,author_user_id,report_title,examination,diagnosis,treatment_plan,follow_up_instructions,follow_up_date,status,finalized_at,created_at,updated_at').eq('patient_id', patientId).order('created_at', { ascending: false }),
+    client.from('patient_documents').select('id,visit_id,uploaded_by,file_name,mime_type,file_size_bytes,storage_path,visibility,created_at').eq('patient_id', patientId).order('created_at', { ascending: false }),
+  ])
+  return {
+    patient: unwrap(patientResult),
+    visits: unwrap(visitsResult) || [],
+    notes: unwrap(notesResult) || [],
+    reports: unwrap(reportsResult) || [],
+    documents: unwrap(documentsResult) || [],
+  }
+}
+
+export async function createDoctorReport(client, report) {
+  const { data: sessionData, error: sessionError } = await client.auth.getSession()
+  if (sessionError) throw sessionError
+  const authorUserId = sessionData.session?.user?.id
+  if (!authorUserId) throw new Error('Please sign in again before saving a report.')
+  const result = await client.from('doctor_reports').insert({
+    patient_id: report.patientId,
+    visit_id: report.visitId,
+    author_user_id: authorUserId,
+    report_title: report.title || 'Consultation report',
+    examination: report.examination || '',
+    diagnosis: report.diagnosis || '',
+    treatment_plan: report.treatmentPlan || '',
+    follow_up_instructions: report.followUpInstructions || '',
+    follow_up_date: report.followUpDate || null,
+    status: 'draft',
+  }).select('id').single()
+  return unwrap(result)
+}
+
+export async function finalizeDoctorReport(client, reportId) {
+  const result = await client.from('doctor_reports')
+    .update({ status: 'finalized', finalized_at: new Date().toISOString() })
+    .eq('id', reportId)
+    .eq('status', 'draft')
+    .select('id,status,finalized_at')
+    .single()
+  return unwrap(result)
+}
+
+export async function uploadPatientDocument(client, { patientId, visitId = null, file, visibility = 'patient_visible' }) {
+  if (!(file instanceof File)) throw new Error('Choose a file to upload.')
+  const allowedTypes = new Set([
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ])
+  if (!allowedTypes.has(file.type)) throw new Error('Upload a PDF, JPG, PNG, DOC, or DOCX file.')
+  if (file.size <= 0 || file.size > 15 * 1024 * 1024) throw new Error('File size must be 15 MB or less.')
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-180) || 'medical-document'
+  const storagePath = `${patientId}/${crypto.randomUUID()}-${safeName}`
+  const storage = client.storage.from('patient-medical-records')
+  const uploadResult = await storage.upload(storagePath, file, { contentType: file.type, upsert: false })
+  if (uploadResult.error) throw uploadResult.error
+  try {
+    const { data: sessionData, error: sessionError } = await client.auth.getSession()
+    if (sessionError) throw sessionError
+    const uploadedBy = sessionData.session?.user?.id
+    if (!uploadedBy) throw new Error('Please sign in again before uploading.')
+    const result = await client.from('patient_documents').insert({
+      patient_id: patientId,
+      visit_id: visitId,
+      uploaded_by: uploadedBy,
+      file_name: file.name,
+      mime_type: file.type,
+      file_size_bytes: file.size,
+      storage_path: storagePath,
+      visibility,
+    }).select('id').single()
+    return unwrap(result)
+  } catch (error) {
+    await storage.remove([storagePath])
+    throw error
+  }
+}
+
+export async function getPatientDocumentDownloadUrl(client, storagePath) {
+  const result = await client.storage.from('patient-medical-records').createSignedUrl(storagePath, 60)
+  return unwrap(result).signedUrl
+}
