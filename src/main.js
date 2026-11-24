@@ -10,6 +10,11 @@ import {
   updatePatient,
   updateStaffProfile,
   inviteStaffMember,
+  loadPatientMedicalRecord,
+  createDoctorReport,
+  finalizeDoctorReport,
+  uploadPatientDocument,
+  getPatientDocumentDownloadUrl,
 } from './lib/api.js'
 import { isSupabaseConfigured, supabase, supabaseConfigError } from './lib/supabase.js'
 import { renderPublicRegistration } from './public-registration.js'
@@ -418,7 +423,7 @@ function departmentCard(department, code, iconName, tone) {
 function patientRows(patients, compact = false) {
   if (!patients.length) return `<tr><td class="empty-cell" colspan="5">No patients found. Try adjusting your search or filters.</td></tr>`
   return patients.map((patient) => `<tr>
-    <td><button class="patient-name" data-action="view-patient" data-id="${escapeHtml(patient.id)}"><span class="avatar avatar-soft">${initials(patient.name)}</span><span><strong>${escapeHtml(patient.name)}</strong><small>${escapeHtml(patient.id)}</small></span></button></td>
+    <td><button class="patient-name" data-action="view-medical-record" data-id="${escapeHtml(patient.id)}"><span class="avatar avatar-soft">${initials(patient.name)}</span><span><strong>${escapeHtml(patient.name)}</strong><small>${escapeHtml(patient.id)}</small></span></button></td>
     ${compact ? '' : `<td>${escapeHtml(patient.department)}</td>`}
     <td><span class="token">${escapeHtml(patient.token || '—')}</span></td>
         <td>${patient.status ? `<span class="status-badge ${patient.status.toLowerCase()}"><i></i>${escapeHtml(patient.status)}</span>` : '—'}</td>
@@ -624,7 +629,23 @@ function renderModal() {
       const fields = `<div class="form-grid"><label class="form-field form-full"><span>Full name</span><input name="name" required maxlength="120" value="${escapeHtml(patient.name)}" ${canEdit ? '' : 'readonly'}></label><label class="form-field"><span>Age</span><input name="age" type="number" min="0" max="120" required value="${patient.age}" ${canEdit ? '' : 'readonly'}></label><label class="form-field"><span>Gender</span><select name="gender" ${canEdit ? '' : 'disabled'}>${['Female', 'Male', 'Non-binary', 'Prefer not to say'].map((gender) => `<option ${patient.gender === gender ? 'selected' : ''}>${gender}</option>`).join('')}</select></label><label class="form-field form-full"><span>Mobile number</span><input name="mobile" type="tel" required value="${escapeHtml(patient.mobile)}" ${canEdit ? '' : 'readonly'}></label></div>`
       content = `<div class="modal-heading"><div><p class="eyebrow">PATIENT PROFILE</p><h2>${escapeHtml(patient.name)}</h2><p>${escapeHtml(patient.id)} · Registered ${formatTime(patient.createdAt)}</p></div><button class="icon-button" data-action="close-modal" aria-label="Close dialog">${icon('close')}</button></div><div class="profile-summary"><span class="avatar avatar-soft avatar-large">${initials(patient.name)}</span><div><span class="token">${escapeHtml(patient.token || 'No visit')}</span>${patient.status ? `<span class="status-badge ${patient.status.toLowerCase()}"><i></i>${escapeHtml(patient.status)}</span>` : ''}</div></div>${canEdit ? `<form id="edit-patient-form" class="modal-form"><input type="hidden" name="patientUuid" value="${escapeHtml(patient.patientUuid)}">${fields}<div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Cancel</button><button type="submit" class="button button-primary">${icon('check')} Save profile</button></div></form>` : `<div class="modal-form">${fields}<div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Close</button></div></div>`}`
     }
-  } else if (state.modal.type === 'token-qr' && state.profile?.role === 'Admin') {
+  } else if (state.modal.type === 'medical-record') {
+    const record = state.modal.record
+    if (record) {
+      const isDoctor = state.profile?.role === 'Doctor'
+      const reportRows = record.reports.map((r) => '<article class="medical-record-item"><strong>' + escapeHtml(r.report_title) + '</strong><span class="status-badge">' + escapeHtml(r.status) + '</span><p><b>Diagnosis:</b> ' + escapeHtml(r.diagnosis || 'Not recorded') + '</p><p><b>Examination:</b> ' + escapeHtml(r.examination || 'Not recorded') + '</p><p><b>Treatment:</b> ' + escapeHtml(r.treatment_plan || 'Not recorded') + '</p><p><b>Follow-up:</b> ' + escapeHtml(r.follow_up_instructions || 'Not recorded') + '</p>' + (r.status === 'draft' && isDoctor ? '<button class="button button-primary button-small" data-action="finalize-doctor-report" data-id="' + escapeHtml(r.id) + '">Finalize report</button>' : '') + '</article>').join('')
+      const noteRows = record.notes.map((n) => '<article class="medical-record-item"><strong>' + escapeHtml(n.title) + '</strong><p>' + escapeHtml(n.content) + '</p><small>' + escapeHtml(n.visibility) + '</small></article>').join('')
+      const docRows = record.documents.map((d) => '<article class="medical-record-item"><strong>' + escapeHtml(d.file_name) + '</strong> <button class="button button-secondary button-small" data-action="download-patient-document" data-path="' + escapeHtml(d.storage_path) + '">Download</button></article>').join('')
+      const visitRows = record.visits.map((v) => '<div class="medical-record-item"><strong>' + escapeHtml(v.department?.name || 'Visit') + '</strong><p>' + escapeHtml(v.status) + ' · ' + escapeHtml(new Date(v.arrived_at).toLocaleString()) + '</p></div>').join('')
+      content = '<div class="modal-heading"><div><p class="eyebrow">CONFIDENTIAL MEDICAL RECORD</p><h2>' + escapeHtml(record.patient.full_name) + '</h2><p>' + escapeHtml(record.patient.patient_code) + '</p></div><button class="icon-button" data-action="close-modal">×</button></div>' +
+        '<div class="medical-record-summary"><p>Age: ' + record.patient.age + ' · Gender: ' + escapeHtml(record.patient.gender) + ' · Mobile: ' + escapeHtml(record.patient.mobile) + '</p></div>' +
+        '<section class="medical-record-section"><h3>Visit history</h3>' + (visitRows || '<p>No visits.</p>') + '</section>' +
+        '<section class="medical-record-section"><div class="medical-record-section-heading"><h3>Doctor reports</h3>' + (isDoctor ? '<button class="button button-primary button-small" data-action="new-doctor-report">New report</button>' : '') + '</div>' + (reportRows || '<p>No reports yet.</p>') + '</section>' +
+        (isDoctor ? '<form id="doctor-report-form" class="modal-form" hidden><h3>New report</h3><input type="hidden" name="patientId" value="' + escapeHtml(record.patient.id) + '"><label class="form-field"><span>Visit</span><select name="visitId" required>' + record.visits.map((v) => '<option value="' + escapeHtml(v.id) + '">' + escapeHtml(v.department?.name || 'Visit') + ' · ' + escapeHtml(new Date(v.arrived_at).toLocaleDateString()) + '</option>').join('') + '</select></label><label class="form-field"><span>Examination</span><textarea name="examination" rows="3"></textarea></label><label class="form-field"><span>Diagnosis</span><textarea name="diagnosis" rows="3"></textarea></label><label class="form-field"><span>Treatment plan</span><textarea name="treatmentPlan" rows="3"></textarea></label><label class="form-field"><span>Follow-up instructions</span><textarea name="followUpInstructions" rows="2"></textarea></label><label class="form-field"><span>Follow-up date</span><input type="date" name="followUpDate"></label><button class="button button-primary" type="submit">Save draft report</button></form>' : '') +
+        '<section class="medical-record-section"><h3>Medical notes (doctor only)</h3>' + (noteRows || '<p>No notes.</p>') + '</section>' +
+        '<section class="medical-record-section"><h3>Documents</h3>' + (docRows || '<p>No documents.</p>') + (isDoctor ? '<button class="button button-secondary button-small" data-action="upload-patient-document">Upload document</button><input id="patient-document-input" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" hidden>' : '') + '</section>' +
+        '<div class="modal-actions"><button class="button button-secondary" data-action="close-modal">Close</button><button class="button button-secondary" data-action="print-medical-record">Print / Save PDF</button></div>'
+    }  } else if (state.modal.type === 'token-qr' && state.profile?.role === 'Admin') {
     const patientId = String(state.modal.patientId || '');
     const token = String(state.modal.token || '');
     const department = String(state.modal.department || '');
@@ -832,6 +853,15 @@ app.addEventListener('click', async (event) => {
   if (action === 'close-modal') { state.modal = null; renderModal() }
   if (action === 'backdrop-close' && event.target === target) { state.modal = null; renderModal() }
   if (action === 'view-patient') { state.modal = { type: 'profile', id: target.dataset.id }; renderModal() }
+  if (action === 'view-medical-record') {
+    const patient = state.patients.find((p) => p.id === target.dataset.id)
+    if (patient) { try { state.modal = { type: 'medical-record', record: await loadPatientMedicalRecord(supabase, patient.patientUuid) }; renderModal() } catch (error) { showToast('Could not load medical record: ' + error.message, 'error') } }
+  }
+  if (action === 'new-doctor-report') { const form = document.querySelector('#doctor-report-form'); if (form) form.hidden = false }
+  if (action === 'finalize-doctor-report') { try { await finalizeDoctorReport(supabase, target.dataset.id); state.modal.record = await loadPatientMedicalRecord(supabase, state.modal.record.patient.id); renderModal(); showToast('Doctor report finalized.') } catch (error) { showToast('Could not finalize report: ' + error.message, 'error') } }
+  if (action === 'upload-patient-document') document.querySelector('#patient-document-input')?.click()
+  if (action === 'download-patient-document') { try { const url = await getPatientDocumentDownloadUrl(supabase, target.dataset.path); window.open(url, '_blank', 'noopener,noreferrer') } catch (error) { showToast('Download failed: ' + error.message, 'error') } }
+  if (action === 'print-medical-record') window.print()
   if (action === 'print-token-qr') window.print()
   if (action === 'call-next') await callNext(target.dataset.department)
   if (action === 'start-serving') {
@@ -918,6 +948,12 @@ app.addEventListener('change', (event) => {
   }
 })
 
+app.addEventListener('change', async (event) => {
+  if (event.target.id === 'patient-document-input' && event.target.files?.[0] && state.modal?.type === 'medical-record') {
+    try { const record = state.modal.record; await uploadPatientDocument(supabase, { patientId: record.patient.id, visitId: record.visits[0]?.id || null, file: event.target.files[0], visibility: 'doctor_only' }); state.modal.record = await loadPatientMedicalRecord(supabase, record.patient.id); renderModal(); showToast('Document uploaded securely.') } catch (error) { showToast('Upload failed: ' + error.message, 'error') }
+    event.target.value = ''
+  }
+})
 app.addEventListener('submit', (event) => {
   if (event.target.id === 'sign-in-form') {
     event.preventDefault()
@@ -940,6 +976,11 @@ app.addEventListener('submit', (event) => {
     })
   }
   if (event.target.id === 'register-form') { event.preventDefault(); registerPatient(event.target) }
+  if (event.target.id === 'doctor-report-form') {
+    event.preventDefault(); const data = new FormData(event.target)
+    const report = { patientId: String(data.get('patientId')), visitId: String(data.get('visitId')), title: 'Consultation report', examination: String(data.get('examination')).trim(), diagnosis: String(data.get('diagnosis')).trim(), treatmentPlan: String(data.get('treatmentPlan')).trim(), followUpInstructions: String(data.get('followUpInstructions')).trim(), followUpDate: String(data.get('followUpDate')) || null }
+    try { await createDoctorReport(supabase, report); state.modal.record = await loadPatientMedicalRecord(supabase, report.patientId); renderModal(); showToast('Doctor report saved as draft.') } catch (error) { showToast('Could not save report: ' + error.message, 'error') }
+  }
   if (event.target.id === 'edit-patient-form') { event.preventDefault(); savePatient(event.target) }
   if (event.target.id === 'staff-invite-form') {
     event.preventDefault()
