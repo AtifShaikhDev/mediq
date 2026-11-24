@@ -12,11 +12,11 @@ export const supabaseConfigError = isSupabaseConfigured
   : 'Add VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY to your local .env file, then restart Vite.'
 
 const doctorPortalClient = typeof window !== 'undefined' && (
-  window.location.pathname.replace(/\\/+$/, '').endsWith('/doctor')
+  window.location.pathname.replace(/\/+$/, '').endsWith('/doctor')
   || new URLSearchParams(window.location.search).get('portal') === 'doctor'
 )
 const patientPortalClient = typeof window !== 'undefined'
-  && window.location.pathname.replace(/\\/+$/, '').endsWith('/patient')
+  && window.location.pathname.replace(/\/+$/, '').endsWith('/patient')
 const supabaseProjectRef = supabaseUrl ? new URL(supabaseUrl).hostname.split('.')[0] : 'mediq'
 const portalStorageKey = doctorPortalClient
   ? `mediq-${supabaseProjectRef}-doctor-auth-token`
