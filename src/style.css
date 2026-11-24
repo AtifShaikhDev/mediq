@@ -650,6 +650,10 @@ body.public-registration-page { min-width: 0; }
   #modal-root .modal { position: absolute; inset: 0; width: 100%; max-width: none; box-shadow: none; }
   #modal-root .modal-backdrop { position: static; padding: 0; background: #fff; }
   #modal-root .modal-actions, #modal-root [data-action="close-modal"] { display: none !important; }
+  .patient-account-dashboard, .patient-account-dashboard * { visibility: visible !important; }
+  .patient-account-dashboard { position: absolute; inset: 0; width: 100%; max-width: none; margin: 0; padding: 0; border: 0; border-radius: 0; box-shadow: none; }
+  .patient-account-dashboard [data-action="download-report-pdf"],
+  .patient-account-dashboard [data-action="patient-signout"] { display: none !important; }
 }
 
 
