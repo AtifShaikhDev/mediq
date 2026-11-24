@@ -10,6 +10,7 @@ import {
   updatePatient,
   updateStaffProfile,
   inviteStaffMember,
+  invitePatientAccount,
   loadPatientMedicalRecord,
   createDoctorReport,
   finalizeDoctorReport,
@@ -659,7 +660,7 @@ function renderModal() {
     if (patient) {
       const canEdit = ['Admin', 'Receptionist'].includes(state.profile.role)
       const fields = `<div class="form-grid"><label class="form-field form-full"><span>Full name</span><input name="name" required maxlength="120" value="${escapeHtml(patient.name)}" ${canEdit ? '' : 'readonly'}></label><label class="form-field"><span>Age</span><input name="age" type="number" min="0" max="120" required value="${patient.age}" ${canEdit ? '' : 'readonly'}></label><label class="form-field"><span>Gender</span><select name="gender" ${canEdit ? '' : 'disabled'}>${['Female', 'Male', 'Non-binary', 'Prefer not to say'].map((gender) => `<option ${patient.gender === gender ? 'selected' : ''}>${gender}</option>`).join('')}</select></label><label class="form-field form-full"><span>Mobile number</span><input name="mobile" type="tel" required value="${escapeHtml(patient.mobile)}" ${canEdit ? '' : 'readonly'}></label></div>`
-      content = `<div class="modal-heading"><div><p class="eyebrow">PATIENT PROFILE</p><h2>${escapeHtml(patient.name)}</h2><p>${escapeHtml(patient.id)} · Registered ${formatTime(patient.createdAt)}</p></div><button class="icon-button" data-action="close-modal" aria-label="Close dialog">${icon('close')}</button></div><div class="profile-summary"><span class="avatar avatar-soft avatar-large">${initials(patient.name)}</span><div><span class="token">${escapeHtml(patient.token || 'No visit')}</span>${patient.status ? `<span class="status-badge ${patient.status.toLowerCase()}"><i></i>${escapeHtml(patient.status)}</span>` : ''}</div></div>${canEdit ? `<form id="edit-patient-form" class="modal-form"><input type="hidden" name="patientUuid" value="${escapeHtml(patient.patientUuid)}">${fields}<div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Cancel</button><button type="submit" class="button button-primary">${icon('check')} Save profile</button></div></form>` : `<div class="modal-form">${fields}<div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Close</button></div></div>`}${state.profile?.role === 'Admin' ? `<form id="link-patient-account-form" class="modal-form"><h3>Link patient login</h3><input type="hidden" name="patientUuid" value="${escapeHtml(patient.patientUuid)}"><label class="form-field"><span>Verified patient account email</span><input name="email" type="email" required placeholder="patient@example.com"></label><button type="submit" class="button button-secondary">Link account</button><small>Patient must first create an account or have one created by the hospital and verify its email.</small></form>` : ''}`
+      content = `<div class="modal-heading"><div><p class="eyebrow">PATIENT PROFILE</p><h2>${escapeHtml(patient.name)}</h2><p>${escapeHtml(patient.id)} · Registered ${formatTime(patient.createdAt)}</p></div><button class="icon-button" data-action="close-modal" aria-label="Close dialog">${icon('close')}</button></div><div class="profile-summary"><span class="avatar avatar-soft avatar-large">${initials(patient.name)}</span><div><span class="token">${escapeHtml(patient.token || 'No visit')}</span>${patient.status ? `<span class="status-badge ${patient.status.toLowerCase()}"><i></i>${escapeHtml(patient.status)}</span>` : ''}</div></div>${canEdit ? `<form id="edit-patient-form" class="modal-form"><input type="hidden" name="patientUuid" value="${escapeHtml(patient.patientUuid)}">${fields}<div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Cancel</button><button type="submit" class="button button-primary">${icon('check')} Save profile</button></div></form>` : `<div class="modal-form">${fields}<div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Close</button></div></div>`}${state.profile?.role === 'Admin' ? `<form id="invite-patient-account-form" class="modal-form"><h3>Create patient login</h3><input type="hidden" name="patientId" value="${escapeHtml(patient.patientUuid)}"><label class="form-field"><span>Patient email address</span><input name="email" type="email" required maxlength="254" placeholder="patient@example.com"></label><button type="submit" class="button button-primary">Send patient invitation</button><small>Supabase emails a secure invitation link. The patient chooses their own password; MediQ does not store or send passwords.</small></form><form id="link-patient-account-form" class="modal-form"><h3>Link existing login</h3><input type="hidden" name="patientUuid" value="${escapeHtml(patient.patientUuid)}"><label class="form-field"><span>Verified patient account email</span><input name="email" type="email" required placeholder="patient@example.com"></label><button type="submit" class="button button-secondary">Link existing account</button><small>Use only when the patient already has a verified Auth account.</small></form>` : ''}`
     }
   } else if (state.modal.type === 'medical-record') {
     const record = state.modal.record
@@ -1043,6 +1044,26 @@ app.addEventListener('submit', async (event) => {
     try { await createDoctorReport(supabase, report); state.modal.record = await loadPatientMedicalRecord(supabase, report.patientId); renderModal(); showToast('Doctor report saved as draft.') } catch (error) { showToast('Could not save report: ' + error.message, 'error') }
   }
   if (event.target.id === 'edit-patient-form') { event.preventDefault(); savePatient(event.target) }
+  if (event.target.id === 'invite-patient-account-form') {
+    event.preventDefault()
+    if (state.profile?.role !== 'Admin') { showToast('Only admins can invite patient accounts.', 'error'); return }
+    const form = event.target
+    const data = new FormData(form)
+    const submit = form.querySelector('button[type="submit"]')
+    submit.disabled = true
+    submit.textContent = 'Sending invitation…'
+    const patientId = String(data.get('patientId'))
+    const email = String(data.get('email')).trim()
+    try {
+      await invitePatientAccount(supabase, { patientId, email })
+      form.reset()
+      showToast(`Patient invitation sent to ${email}. Account linked to this patient record.`)
+    } catch (error) {
+      showToast(`Patient invitation failed: ${error.message}`, 'error')
+    } finally {
+      if (submit.isConnected) { submit.disabled = false; submit.textContent = 'Send patient invitation' }
+    }
+  }
   if (event.target.id === 'link-patient-account-form') { event.preventDefault(); if (state.profile?.role !== 'Admin') return; const data = new FormData(event.target); try { const { error } = await supabase.rpc('admin_link_patient_account', { p_patient_id: String(data.get('patientUuid')), p_patient_email: String(data.get('email')).trim() }); if (error) throw error; showToast('Patient account linked securely.'); event.target.reset() } catch (error) { showToast('Could not link patient account: ' + error.message, 'error') } }
 
   if (event.target.id === 'staff-invite-form') {
