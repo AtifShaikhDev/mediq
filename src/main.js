@@ -1118,10 +1118,10 @@ document.addEventListener('keydown', (event) => {
 
 if (isPublicRegistration) {
   window.location.replace(`${appBase}patient`)
-} else if (isPublicPatient) {
-  renderPatientDashboard()
 } else if (!isSupabaseConfigured) {
   renderConfigurationError()
+} else if (isPublicPatient) {
+  renderPatientDashboard()
 } else if (isPublicDisplay) {
   renderPublicDisplay()
 } else {
