@@ -1,7 +1,8 @@
 name: Deploy MediQ to GitHub Pages
-# Fresh deployment trigger after repository variables were configured.
 
 on:
+  pull_request:
+    branches: ["main"]
   push:
     branches: ["main"]
   workflow_dispatch:
@@ -12,7 +13,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group: pages
+  group: pages-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -39,14 +40,17 @@ jobs:
           VITE_PUBLIC_REGISTRATION_ENABLED: 'true'
 
       - name: Configure Pages fallback
+        if: github.event_name != 'pull_request'
         run: cp dist/index.html dist/404.html
 
       - name: Upload Pages artifact
+        if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v3
         with:
           path: dist
 
   deploy:
+    if: github.event_name != 'pull_request'
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
