@@ -283,6 +283,11 @@ async function loadSignedInWorkspace(user, force = false) {
       state.staff = workspace.staff
       state.departmentRows = workspace.departments
       state.hospital = workspace.hospital
+      try {
+        state.hospitalProfile = await loadPublicHospitalProfile(supabase)
+      } catch {
+        state.hospitalProfile = { ...state.hospitalProfile, hospital_name: workspace.hospital }
+      }
       departments = workspace.departments.map((department) => department.name)
       state.loading = false
       state.authError = ''
@@ -754,6 +759,11 @@ async function refreshWorkspace() {
   state.staff = workspace.staff
   state.departmentRows = workspace.departments
   state.hospital = workspace.hospital
+  try {
+    state.hospitalProfile = await loadPublicHospitalProfile(supabase)
+  } catch {
+    state.hospitalProfile = { ...state.hospitalProfile, hospital_name: workspace.hospital }
+  }
   departments = workspace.departments.map((department) => department.name)
   renderShell()
 }
