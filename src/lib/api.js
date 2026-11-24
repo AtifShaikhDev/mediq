@@ -247,6 +247,28 @@ export async function updateHospitalName(client, hospitalName) {
   return unwrap(result)
 }
 
+export async function loadPublicHospitalProfile(client) {
+  const result = await client.rpc('get_public_hospital_profile')
+  return unwrap(result)?.[0] || { hospital_name: 'MediQ Hospital' }
+}
+
+export async function updateHospitalProfile(client, profile) {
+  const result = await client.from('hospital_settings')
+    .update({
+      hospital_name: profile.hospital_name,
+      hospital_address: profile.hospital_address,
+      hospital_phone: profile.hospital_phone,
+      hospital_email: profile.hospital_email,
+      hospital_website: profile.hospital_website,
+      hospital_description: profile.hospital_description,
+      hospital_logo_url: profile.hospital_logo_url,
+    })
+    .eq('id', true)
+    .select('hospital_name')
+    .single()
+  return unwrap(result)
+}
+
 export async function loadPublicQueue(client) {
   const result = await client.from('public_queue_display')
     .select('department_id,hospital_name,department_name,department_code,now_serving_token,next_token,updated_at')
