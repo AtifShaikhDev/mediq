@@ -345,7 +345,7 @@ async function renderPatientDashboard() {
       const { data: link, error: linkError } = await supabase.from('patient_accounts').select('patient_id').eq('user_id', session.user.id).maybeSingle()
       if (linkError) throw linkError
       if (!link?.patient_id) {
-        app.innerHTML = `<main class="public-route"><section class="auth-card"><h1>Account awaiting hospital link</h1><p>Your account is signed in, but it has not yet been linked to a verified MediQ patient record. Please contact hospital reception.</p><button class="button button-secondary" id="patient-account-signout" type="button">Sign out</button></section></main>`
+        app.innerHTML = `<main class="public-route"><section class="auth-card"><h1>Account awaiting hospital link</h1><p>Your account is signed in, but it has not yet been linked to a verified MediQ patient record. Please contact hospital reception.</p><button class="button button-secondary" data-action="patient-signout" type="button">Sign out</button></section></main>`
         return
       }
       const [patientResult, reportsResult, visitsResult] = await Promise.all([
@@ -359,7 +359,7 @@ async function renderPatientDashboard() {
       const patient = patientResult.data
       const reports = reportsResult.data || []
       const visits = visitsResult.data || []
-      app.innerHTML = `<main class="public-route"><section class="auth-card patient-account-dashboard"><div class="modal-heading"><div><p class="eyebrow">PRIVATE PATIENT PORTAL</p><h1>Welcome, ${escapeHtml(patient.full_name)}</h1><p>${escapeHtml(patient.patient_code || '')}</p></div><button class="button button-secondary" id="patient-account-signout" type="button">Sign out</button></div><h2>My details</h2><p>Age: ${patient.age} · ${escapeHtml(patient.gender)}</p><h2>My visit history</h2>${visits.map(v => '<article class="medical-record-item"><strong>' + escapeHtml(v.department?.name || 'Hospital visit') + '</strong><p>' + escapeHtml(v.status) + ' · ' + escapeHtml(new Date(v.arrived_at).toLocaleDateString()) + '</p></article>').join('') || '<p>No visit history available.</p>'}<h2>Finalized doctor reports</h2>${reports.map(r => '<article class="medical-record-item"><strong>' + escapeHtml(r.report_title) + '</strong><p><b>Diagnosis:</b> ' + escapeHtml(r.diagnosis || 'Not recorded') + '</p><p><b>Examination:</b> ' + escapeHtml(r.examination || 'Not recorded') + '</p><p><b>Treatment plan:</b> ' + escapeHtml(r.treatment_plan || 'Not recorded') + '</p><p><b>Instructions:</b> ' + escapeHtml(r.follow_up_instructions || 'Not recorded') + '</p><small>Finalized ' + escapeHtml(new Date(r.finalized_at).toLocaleDateString()) + '</small><button class="button button-secondary button-small" data-action="download-report-pdf" data-id="' + escapeHtml(r.id) + '">Print / Save PDF</button></article>').join('') || '<p>No finalized reports are available yet.</p>'}</section></main>`
+      app.innerHTML = `<main class="public-route"><section class="auth-card patient-account-dashboard"><div class="modal-heading"><div><p class="eyebrow">PRIVATE PATIENT PORTAL</p><h1>Welcome, ${escapeHtml(patient.full_name)}</h1><p>${escapeHtml(patient.patient_code || '')}</p></div><button class="button button-secondary" data-action="patient-signout" type="button">Sign out</button></div><h2>My details</h2><p>Age: ${patient.age} · ${escapeHtml(patient.gender)}</p><h2>My visit history</h2>${visits.map(v => '<article class="medical-record-item"><strong>' + escapeHtml(v.department?.name || 'Hospital visit') + '</strong><p>' + escapeHtml(v.status) + ' · ' + escapeHtml(new Date(v.arrived_at).toLocaleDateString()) + '</p></article>').join('') || '<p>No visit history available.</p>'}<h2>Finalized doctor reports</h2>${reports.map(r => '<article class="medical-record-item"><strong>' + escapeHtml(r.report_title) + '</strong><p><b>Diagnosis:</b> ' + escapeHtml(r.diagnosis || 'Not recorded') + '</p><p><b>Examination:</b> ' + escapeHtml(r.examination || 'Not recorded') + '</p><p><b>Treatment plan:</b> ' + escapeHtml(r.treatment_plan || 'Not recorded') + '</p><p><b>Instructions:</b> ' + escapeHtml(r.follow_up_instructions || 'Not recorded') + '</p><small>Finalized ' + escapeHtml(new Date(r.finalized_at).toLocaleDateString()) + '</small><button class="button button-secondary button-small" data-action="download-report-pdf" data-id="' + escapeHtml(r.id) + '">Print / Save PDF</button></article>').join('') || '<p>No finalized reports are available yet.</p>'}</section></main>`
     }
     if (new URLSearchParams(window.location.search).get('register') === '1') {
       renderPublicRegistration(app, icon, supabase, isPublicRegistrationEnabled)
@@ -886,7 +886,7 @@ app.addEventListener('click', async (event) => {
   if (action === 'backdrop-close' && event.target === target) { state.modal = null; renderModal() }
   if (action === 'view-patient') { state.modal = { type: 'profile', id: target.dataset.id }; renderModal() }
   if (action === 'download-report-pdf') window.print()
-  if (target.id === 'patient-account-signout') { supabase.auth.signOut().then(() => renderPatientDashboard()) }
+  if (action === 'patient-signout') { await supabase.auth.signOut(); await renderPatientDashboard() }
   if (action === 'view-medical-record') {
     const patient = state.patients.find((p) => p.id === target.dataset.id)
     if (patient) { try { state.modal = { type: 'medical-record', record: await loadPatientMedicalRecord(supabase, patient.patientUuid) }; renderModal() } catch (error) { showToast('Could not load medical record: ' + error.message, 'error') } }
@@ -988,7 +988,7 @@ app.addEventListener('change', async (event) => {
     event.target.value = ''
   }
 })
-app.addEventListener('submit', (event) => {
+app.addEventListener('submit', async (event) => {
   if (event.target.id === 'patient-account-login' || event.target.id === 'patient-account-signup') {
     event.preventDefault()
     const form = event.target
