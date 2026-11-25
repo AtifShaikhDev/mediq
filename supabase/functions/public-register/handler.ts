@@ -17,7 +17,7 @@ type RpcResult = { data: unknown; error: RpcError | null }
 export type PublicRegistrationClient = {
   rpc: (name: string, parameters: Record<string, unknown>) => PromiseLike<RpcResult>
   findPatientVisit: (patientCode: string) => Promise<{ patientId: string; visitId: string } | null>
-  uploadPatientFile: (patientId: string, visitId: string, file: File) => Promise<void>
+  uploadPatientFile: (patientId: string, visitId: string, file: File, idempotencyKey: string) => Promise<void>
 }
 
 export type PublicRegistrationDependencies = {
@@ -273,7 +273,7 @@ async function handleRequest(
       return jsonResponse(origin, { error: 'Registration was created, but documents could not be attached. Contact reception with your Patient ID.' }, 201)
     }
     for (const file of files) {
-      try { await adminClient.uploadPatientFile(record.patientId, record.visitId, file) }
+      try { await adminClient.uploadPatientFile(record.patientId, record.visitId, file, idempotencyKey) }
       catch (error) {
         dependencies.logError('Public registration document upload failed.', { errorName: error instanceof Error ? error.name : 'UnknownError' })
         return jsonResponse(origin, { error: 'Registration was created, but a document could not be attached. Contact reception with your Patient ID.' }, 201)
