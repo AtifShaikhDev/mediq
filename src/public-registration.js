@@ -74,13 +74,18 @@ export function renderPublicRegistration(app, icon, client, registrationEnabled)
 
   const updateDoctorOptions = () => {
     const department = departmentSelect.value
+    if (!department) {
+      doctorSelect.innerHTML = '<option value="">Choose a department first</option>'
+      doctorSelect.disabled = true
+      return
+    }
     const matchingDoctors = publicDoctors.filter((doctor) => doctor.department_name === department)
     doctorSelect.innerHTML = matchingDoctors.length
       ? '<option value="">Choose a doctor</option>' + matchingDoctors.map((doctor) =>
         `<option value="${doctor.user_id}">${String(doctor.full_name).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character])}</option>`
       ).join('')
       : '<option value="">No active doctors in this department</option>'
-    doctorSelect.disabled = !department || matchingDoctors.length === 0
+    doctorSelect.disabled = matchingDoctors.length === 0
   }
 
   departmentSelect.addEventListener('change', updateDoctorOptions)
