@@ -20,6 +20,10 @@ import {
   getPatientDocumentDownloadUrl,
   createPatientVisitRequest,
   reviewPatientVisitRequest,
+  loadPatientIdCardApplication,
+  submitPatientIdCardApplication,
+  loadPendingPatientIdCards,
+  reviewPatientIdCard,
 } from './lib/api.js'
 import { isSupabaseConfigured, supabase, supabaseConfigError } from './lib/supabase.js'
 import { renderPublicRegistration } from './public-registration.js'
@@ -383,6 +387,8 @@ async function renderPatientDashboard() {
         if (result.error) throw result.error
       }
       const patient = patientResult.data
+      let idCardApplication = null
+      try { idCardApplication = await loadPatientIdCardApplication(supabase, link.patient_id) } catch (error) { console.warn('Patient ID card status unavailable:', error.message) }
       const reports = reportsResult.data || []
       const visits = visitsResult.data || []
       const patientDocuments = documentsResult.data || []
@@ -394,9 +400,20 @@ async function renderPatientDashboard() {
         return '<article class="medical-record-item"><strong>' + escapeHtml(request.department?.name || doctor?.department_name || 'Department') + ' — ' + escapeHtml(doctor?.full_name || 'Doctor') + '</strong><p>Status: ' + escapeHtml(request.status) + '</p><small>Requested ' + escapeHtml(new Date(request.created_at).toLocaleString()) + '</small></article>'
       }).join('')
       const patientDocumentRows = patientDocuments.map(d => '<article class="medical-record-item"><strong>' + escapeHtml(d.file_name) + '</strong><small>' + escapeHtml(new Date(d.created_at).toLocaleDateString()) + '</small> <button class="button button-secondary button-small" data-action="download-patient-document" data-path="' + escapeHtml(d.storage_path) + '">Download</button></article>').join('')
-      app.innerHTML = `<main class="public-route"><section class="auth-card patient-account-dashboard"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>PRIVATE PATIENT PORTAL</small></div></div>${patientHospitalDetails}<p>Welcome to your secure hospital patient dashboard.</p><div class="modal-heading"><div><p class="eyebrow">YOUR MEDICAL SPACE</p><h1>Welcome, ${escapeHtml(patient.full_name)}</h1><p>${escapeHtml(patient.patient_code || '')}</p></div><button class="button button-secondary" data-action="patient-signout" type="button">Sign out</button></div><h2>My details</h2><p>Age: ${patient.age} · ${escapeHtml(patient.gender)}</p><h2>My visit history</h2>${visits.map(v => '<article class="medical-record-item"><strong>' + escapeHtml(v.department?.name || 'Hospital visit') + '</strong><p>' + escapeHtml(v.status) + ' · ' + escapeHtml(new Date(v.arrived_at).toLocaleDateString()) + '</p></article>').join('') || '<p>No visit history available.</p>'}<div class="modal-heading"><h2>Finalized doctor reports</h2><button class="button button-secondary button-small" data-action="download-report-pdf" type="button">Print / Save PDF</button></div>${reports.map(r => '<article class="medical-record-item"><strong>' + escapeHtml(r.report_title) + '</strong><p><b>Diagnosis:</b> ' + escapeHtml(r.diagnosis || 'Not recorded') + '</p><p><b>Examination:</b> ' + escapeHtml(r.examination || 'Not recorded') + '</p><p><b>Treatment plan:</b> ' + escapeHtml(r.treatment_plan || 'Not recorded') + '</p><p><b>Instructions:</b> ' + escapeHtml(r.follow_up_instructions || 'Not recorded') + '</p><small>Finalized ' + escapeHtml(new Date(r.finalized_at).toLocaleDateString()) + '</small></article>').join('') || '<p>No finalized reports are available yet.</p>'}<h2>Request a new visit</h2><p>Choose a department and doctor. Your request must be approved by hospital reception before a queue token is created.</p><form id="patient-visit-request-form" class="modal-form"><label class="form-field"><span>Department and doctor</span><select name="doctorChoice" required><option value="">Choose a department and doctor</option>${visitRequestOptions}</select></label><button class="button button-primary" type="submit" ${visitRequestOptions ? '' : 'disabled'}>Submit visit request</button></form><h2>My visit requests</h2>${visitRequestRows || '<p>You have not requested a new visit.</p>'}<h2>My documents</h2>${patientDocumentRows || '<p>No patient-visible documents available yet.</p>'}</section></main>`
+      app.innerHTML = `<main class="public-route"><section class="auth-card patient-account-dashboard"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>PRIVATE PATIENT PORTAL</small></div></div>${patientHospitalDetails}<p>Welcome to your secure hospital patient dashboard.</p><div class="modal-heading"><div><p class="eyebrow">YOUR MEDICAL SPACE</p><h1>Welcome, ${escapeHtml(patient.full_name)}</h1><p>${escapeHtml(patient.patient_code || '')}</p></div><button class="button button-secondary" data-action="patient-signout" type="button">Sign out</button></div><h2>My details</h2><p>Age: ${patient.age} · ${escapeHtml(patient.gender)}</p><section class="medical-record-item patient-id-card-application"><h2>Digital Patient ID Card</h2>${idCardApplication?.status === 'approved' ? `<div class="patient-id-card"><div class="patient-id-card-front"><div class="patient-id-card-brand"><strong>MEDIQ</strong><span>PATIENT ID CARD</span></div><div class="patient-id-card-main"><div><small>FULL NAME</small><strong>${escapeHtml(patient.full_name)}</strong><small>PATIENT ID</small><b>${escapeHtml(patient.patient_code)}</b></div><div class="patient-id-card-qr" id="patient-card-qr"></div></div><div class="patient-id-card-meta"><span>Blood group<strong>${escapeHtml(idCardApplication.blood_group || 'Not provided')}</strong></span><span>Mobile<strong>${escapeHtml(patient.mobile || 'Not provided')}</strong></span></div></div><div class="patient-id-card-back"><strong>${escapeHtml(patientHospitalName)}</strong><p>${escapeHtml(patientHospitalProfile.hospital_address || '')}</p><p>Phone: ${escapeHtml(patientHospitalProfile.hospital_phone || 'Not provided')}</p><p>Email: ${escapeHtml(patientHospitalProfile.hospital_email || 'Not provided')}</p><p>Website: ${escapeHtml(patientHospitalProfile.hospital_website || 'Not provided')}</p><small>Show this card at hospital reception. QR code contains a private card identifier only. It does not display medical records.</small></div></div><button class="button button-secondary" data-action="print-patient-id-card">Print / Save card as PDF</button>` : idCardApplication?.status === 'pending' ? '<p>Your card application is waiting for Admin verification.</p>' : idCardApplication?.status === 'rejected' ? '<p>Your previous application was rejected. You can update your details and submit again.</p>' : '<p>Apply for your digital patient identity card. Hospital Admin will verify your details before issuing it.</p>'}${idCardApplication?.status === 'approved' || idCardApplication?.status === 'pending' ? '' : `<form id="patient-id-card-application-form" class="modal-form"><label class="form-field"><span>Blood group</span><select name="bloodGroup"><option value="">Select (optional)</option>${['A+','A-','B+','B-','AB+','AB-','O+','O-','Unknown'].map(v=>'<option value="'+v+'" '+(idCardApplication?.blood_group===v?'selected':'')+'>'+v+'</option>').join('')}</select></label><label class="form-field"><span>Date of birth</span><input type="date" name="dateOfBirth" value="${escapeHtml(idCardApplication?.date_of_birth || '')}"></label><label class="form-field"><span>Emergency contact name</span><input name="emergencyContactName" maxlength="120" value="${escapeHtml(idCardApplication?.emergency_contact_name || '')}"></label><label class="form-field"><span>Emergency contact number</span><input name="emergencyContactPhone" type="tel" maxlength="40" value="${escapeHtml(idCardApplication?.emergency_contact_phone || '')}"></label><label class="form-field"><span>Address</span><textarea name="address" rows="2" maxlength="500">${escapeHtml(idCardApplication?.address || '')}</textarea></label><button class="button button-primary" type="submit">Submit card application</button></form>`}</section><h2>My visit history</h2>${visits.map(v => '<article class="medical-record-item"><strong>' + escapeHtml(v.department?.name || 'Hospital visit') + '</strong><p>' + escapeHtml(v.status) + ' · ' + escapeHtml(new Date(v.arrived_at).toLocaleDateString()) + '</p></article>').join('') || '<p>No visit history available.</p>'}<div class="modal-heading"><h2>Finalized doctor reports</h2><button class="button button-secondary button-small" data-action="download-report-pdf" type="button">Print / Save PDF</button></div>${reports.map(r => '<article class="medical-record-item"><strong>' + escapeHtml(r.report_title) + '</strong><p><b>Diagnosis:</b> ' + escapeHtml(r.diagnosis || 'Not recorded') + '</p><p><b>Examination:</b> ' + escapeHtml(r.examination || 'Not recorded') + '</p><p><b>Treatment plan:</b> ' + escapeHtml(r.treatment_plan || 'Not recorded') + '</p><p><b>Instructions:</b> ' + escapeHtml(r.follow_up_instructions || 'Not recorded') + '</p><small>Finalized ' + escapeHtml(new Date(r.finalized_at).toLocaleDateString()) + '</small></article>').join('') || '<p>No finalized reports are available yet.</p>'}<h2>Request a new visit</h2><p>Choose a department and doctor. Your request must be approved by hospital reception before a queue token is created.</p><form id="patient-visit-request-form" class="modal-form"><label class="form-field"><span>Department and doctor</span><select name="doctorChoice" required><option value="">Choose a department and doctor</option>${visitRequestOptions}</select></label><button class="button button-primary" type="submit" ${visitRequestOptions ? '' : 'disabled'}>Submit visit request</button></form><h2>My visit requests</h2>${visitRequestRows || '<p>You have not requested a new visit.</p>'}<h2>My documents</h2>${patientDocumentRows || '<p>No patient-visible documents available yet.</p>'}</section></main>`
     }
-    try { await renderPatientAccount() } catch (error) {
+    try {
+      await renderPatientAccount()
+      const cardQr = document.querySelector('#patient-card-qr')
+      if (cardQr) {
+        const { data: sessionData } = await supabase.auth.getSession()
+        const { data: link } = await supabase.from('patient_accounts').select('patient_id').eq('user_id', sessionData.session.user.id).maybeSingle()
+        if (link?.patient_id) {
+          const application = await loadPatientIdCardApplication(supabase, link.patient_id)
+          if (application?.status === 'approved') drawQrCode(cardQr, application.card_qr_id)
+        }
+      }
+    } catch (error) {
       app.innerHTML = '<main class="public-route"><section class="auth-card"><h1>Patient portal unavailable</h1><p>' + escapeHtml(error.message) + '</p><button class="button button-secondary" onclick="location.reload()">Try again</button></section></main>'
     }
     return
@@ -955,6 +972,7 @@ app.addEventListener('click', async (event) => {
       showToast('Could not review visit request: ' + error.message, 'error')
     }
   }
+  if (action === 'print-patient-id-card') window.print()
   if (action === 'download-report-pdf') window.print()
   if (action === 'patient-signout') { await supabase.auth.signOut(); await renderPatientDashboard() }
   if (action === 'view-medical-record') {
@@ -1093,6 +1111,37 @@ app.addEventListener('submit', async (event) => {
       }
     } catch (error) {
       submit.disabled = false
+      const note = document.createElement('p')
+      note.className = 'form-guidance'
+      note.setAttribute('role', 'alert')
+      note.textContent = error.message
+      form.prepend(note)
+    }
+  }
+  if (event.target.id === 'patient-id-card-application-form') {
+    event.preventDefault()
+    const form = event.target
+    const data = new FormData(form)
+    const submit = form.querySelector('button[type="submit"]')
+    submit.disabled = true
+    submit.textContent = 'Submitting…'
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
+      if (sessionError) throw sessionError
+      const { data: link, error: linkError } = await supabase.from('patient_accounts').select('patient_id').eq('user_id', sessionData.session.user.id).single()
+      if (linkError) throw linkError
+      await submitPatientIdCardApplication(supabase, {
+        patientId: link.patient_id,
+        bloodGroup: String(data.get('bloodGroup') || ''),
+        dateOfBirth: String(data.get('dateOfBirth') || ''),
+        emergencyContactName: String(data.get('emergencyContactName') || '').trim(),
+        emergencyContactPhone: String(data.get('emergencyContactPhone') || '').trim(),
+        address: String(data.get('address') || '').trim(),
+      })
+      await renderPatientDashboard()
+    } catch (error) {
+      submit.disabled = false
+      submit.textContent = 'Submit card application'
       const note = document.createElement('p')
       note.className = 'form-guidance'
       note.setAttribute('role', 'alert')
