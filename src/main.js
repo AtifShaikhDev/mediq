@@ -377,7 +377,7 @@ async function renderPatientDashboard() {
       const { data: sessionData } = await supabase.auth.getSession()
       const session = sessionData.session
       if (!session) {
-        app.innerHTML = `<main class="public-route"><section class="auth-card patient-portal-entry"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>MEDIQ PATIENT PORTAL</small></div></div><p class="eyebrow">WELCOME TO YOUR HOSPITAL PORTAL</p><h1>Patient Login</h1><p>Sign in with your hospital-linked account to view your personal dashboard, visit history and finalized doctor reports.</p>${message ? '<p class="form-guidance" role="status">' + escapeHtml(message) + '</p>' : ''}<form id="patient-account-login" class="modal-form"><label class="form-field"><span>Email</span><input name="email" type="email" autocomplete="email" required></label><label class="form-field"><span>Password</span><input name="password" type="password" autocomplete="current-password" required></label><button class="button button-primary" type="submit">Sign in</button></form><div class="patient-account-divider">New to MediQ?</div><form id="patient-account-signup" class="modal-form"><label class="form-field"><span>Full name</span><input name="fullName" required maxlength="120"></label><label class="form-field"><span>Email</span><input name="email" type="email" autocomplete="email" required></label><label class="form-field"><span>Create password</span><input name="password" type="password" minlength="8" autocomplete="new-password" required></label><button class="button button-secondary" type="submit">Create patient account</button></form>${patientHospitalDetails}<p class="caption">New patient? Create an account above, then contact hospital reception to link your hospital record.</p></section></main>`
+        app.innerHTML = `<main class="public-route"><section class="auth-card patient-portal-entry"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>MEDIQ PATIENT PORTAL</small></div></div><p class="eyebrow">WELCOME TO YOUR HOSPITAL PORTAL</p><h1>Patient Login</h1><p>Sign in with your hospital-linked account to view your personal dashboard, visit history and finalized doctor reports.</p>${message ? '<p class="form-guidance" role="status">' + escapeHtml(message) + '</p>' : ''}<form id="patient-account-login" class="modal-form"><label class="form-field"><span>Email</span><input name="email" type="email" autocomplete="email" required></label><label class="form-field"><span>Password</span><input name="password" type="password" autocomplete="current-password" required></label><button class="button button-primary" type="submit">Sign in</button></form><button class="text-button" data-action="resend-patient-confirmation" type="button">Resend confirmation email</button><div class="patient-account-divider">New to MediQ?</div><form id="patient-account-signup" class="modal-form"><label class="form-field"><span>Full name</span><input name="fullName" required maxlength="120"></label><label class="form-field"><span>Email</span><input name="email" type="email" autocomplete="email" required></label><label class="form-field"><span>Create password</span><input name="password" type="password" minlength="8" autocomplete="new-password" required></label><button class="button button-secondary" type="submit">Create patient account</button></form>${patientHospitalDetails}<p class="caption">New patient? Create an account above, then contact hospital reception to link your hospital record.</p></section></main>`
         return
       }
       const { data: link, error: linkError } = await supabase.from('patient_accounts').select('patient_id').eq('user_id', session.user.id).maybeSingle()
@@ -1020,6 +1020,18 @@ app.addEventListener('click', async (event) => {
   }
   if (action === 'print-patient-id-card') window.print()
   if (action === 'download-report-pdf') window.print()
+  if (action === 'resend-patient-confirmation') {
+    const email = String(document.querySelector('#patient-account-login input[name="email"]')?.value || '').trim()
+    if (!email) { showToast('Enter your patient account email first.', 'error'); return }
+    target.disabled = true
+    try {
+      const { error } = await supabase.auth.resend({ type: 'signup', email, options: { emailRedirectTo: `${window.location.origin}${appBase}patient` } })
+      if (error) throw error
+      showToast('Confirmation email sent. Check your inbox and spam folder.')
+    } catch (error) {
+      showToast('Could not resend confirmation email: ' + error.message, 'error')
+    } finally { target.disabled = false }
+  }
   if (action === 'patient-signout') { await supabase.auth.signOut(); await renderPatientDashboard() }
   if (action === 'view-medical-record') {
     const patient = state.patients.find((p) => p.id === target.dataset.id)
