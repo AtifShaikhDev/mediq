@@ -25,6 +25,7 @@ import {
   loadPendingPatientIdCards,
   reviewPatientIdCard,
   verifyPatientIdCard,
+  linkPatientAccount,
 } from './lib/api.js'
 import { isSupabaseConfigured, supabase, supabaseConfigError } from './lib/supabase.js'
 import { renderPublicRegistration } from './public-registration.js'
@@ -112,6 +113,7 @@ const isPublicCardVerification = appPath === '/verify-card'
 const isDoctorPortal = window.location.pathname.replace(/\/+$/, '').endsWith('/doctor') || appPath === '/doctor' || new URLSearchParams(window.location.search).get('portal') === 'doctor'
 const isPublicRegistrationEnabled = import.meta.env.VITE_PUBLIC_REGISTRATION_ENABLED === 'true'
 let workspaceChannel = null
+let pendingPatientLink = null
 let publicChannel = null
 let lastLoadedUserId = null
 let workspaceLoadPromise = null
@@ -377,13 +379,16 @@ async function renderPatientDashboard() {
       const { data: sessionData } = await supabase.auth.getSession()
       const session = sessionData.session
       if (!session) {
-        app.innerHTML = `<main class="public-route patient-auth-page"><section class="auth-card patient-portal-entry"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>MEDIQ PATIENT PORTAL</small></div><span class="patient-secure-label">${icon('shield-check')} Secure access</span></div><div class="patient-auth-heading"><p class="eyebrow">WELCOME TO YOUR HOSPITAL PORTAL</p><h1>Welcome back</h1><p>Sign in to securely view your visits, doctor reports and personal health documents.</p></div>${message ? '<p class="form-guidance" role="status">' + escapeHtml(message) + '</p>' : ''}<form id="patient-account-login" class="modal-form patient-login-form"><label class="form-field"><span>Email address</span><input name="email" type="email" autocomplete="email" placeholder="you@example.com" required></label><label class="form-field"><span>Password</span><input name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required></label><button class="button button-primary" type="submit">${icon('lock-keyhole')} Sign in securely</button></form><div class="patient-auth-links"><button class="text-button" data-action="request-patient-password-reset" type="button">Forgot password?</button><button class="text-button" data-action="resend-patient-confirmation" type="button">Resend confirmation email</button></div><details class="patient-signup-details"><summary>New to MediQ? <span>Create a patient account</span></summary><form id="patient-account-signup" class="modal-form"><label class="form-field"><span>Full name</span><input name="fullName" required maxlength="120" autocomplete="name"></label><label class="form-field"><span>Email address</span><input name="email" type="email" autocomplete="email" placeholder="you@example.com" required></label><label class="form-field"><span>Create password</span><input name="password" type="password" minlength="8" autocomplete="new-password" required></label><button class="button button-secondary" type="submit">Create patient account</button></form><p class="caption">After creating an account, hospital reception must link it to your patient record.</p></details>${patientHospitalDetails}<p class="patient-auth-footnote">${icon('shield-check')} Your health information is protected and visible only to authorized accounts.</p></section></main>`
+        app.innerHTML = `<main class="public-route patient-auth-page"><section class="auth-card patient-portal-entry"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>MEDIQ PATIENT PORTAL</small></div><span class="patient-secure-label">${icon('shield-check')} Secure access</span></div><div class="patient-auth-heading"><p class="eyebrow">WELCOME TO YOUR HOSPITAL PORTAL</p><h1>Welcome back</h1><p>Sign in to securely view your visits, doctor reports and personal health documents.</p></div>${message ? '<p class="form-guidance" role="status">' + escapeHtml(message) + '</p>' : ''}<form id="patient-account-login" class="modal-form patient-login-form"><label class="form-field"><span>Email address</span><input name="email" type="email" autocomplete="email" placeholder="you@example.com" required></label><label class="form-field"><span>Password</span><input name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required></label><button class="button button-primary" type="submit">${icon('lock-keyhole')} Sign in securely</button></form><div class="patient-auth-links"><button class="text-button" data-action="request-patient-password-reset" type="button">Forgot password?</button><button class="text-button" data-action="resend-patient-confirmation" type="button">Resend confirmation email</button></div><details class="patient-signup-details"><summary>New to MediQ? <span>Create a patient account</span></summary><form id="patient-account-signup" class="modal-form"><label class="form-field"><span>Full name</span><input name="fullName" required maxlength="120" autocomplete="name"></label><label class="form-field"><span>Email address</span><input name="email" type="email" autocomplete="email" placeholder="you@example.com" required></label><label class="form-field"><span>Create password</span><input name="password" type="password" minlength="8" autocomplete="new-password" required></label><button class="button button-secondary" type="submit">Create patient account</button></form><p class="caption">After confirming your email, sign in and verify your MediQ Patient ID with the mobile number registered at the hospital.</p></details>${patientHospitalDetails}<p class="patient-auth-footnote">${icon('shield-check')} Your health information is protected and visible only to authorized accounts.</p></section></main>`
         return
       }
       const { data: link, error: linkError } = await supabase.from('patient_accounts').select('patient_id').eq('user_id', session.user.id).maybeSingle()
       if (linkError) throw linkError
       if (!link?.patient_id) {
-        app.innerHTML = `<main class="public-route"><section class="auth-card patient-portal-entry"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>MEDIQ PATIENT PORTAL</small></div></div><h1>Account awaiting hospital link</h1><p>Your account is signed in, but it has not yet been linked to a verified MediQ patient record. Hospital reception must verify and connect your patient profile before private medical records can appear.</p>${patientHospitalDetails}<p>For registration and account linking, please contact the hospital reception team.</p><button class="button button-secondary" data-action="patient-signout" type="button">Sign out</button></section></main>`
+        const linkStep = pendingPatientLink
+          ? `<form id="patient-account-link-verify" class="modal-form patient-link-form"><p class="form-guidance">A verification code was requested for the registered mobile number ending in ${escapeHtml(pendingPatientLink.phone.slice(-4))}. Enter the six-digit code below.</p><label class="form-field"><span>SMS verification code</span><input name="otp" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" minlength="6" maxlength="6" required placeholder="6-digit code"></label><button class="button button-primary" type="submit">Verify & link my account</button><button class="text-button" data-action="cancel-patient-link" type="button">Start again</button></form>`
+          : `<form id="patient-account-link-start" class="modal-form patient-link-form"><label class="form-field"><span>MediQ Patient ID</span><input name="patientCode" required maxlength="40" autocomplete="off" placeholder="e.g. MQ-000020"></label><label class="form-field"><span>Registered mobile number</span><input name="phone" type="tel" inputmode="tel" autocomplete="tel" required pattern="\\+[1-9][0-9]{7,14}" placeholder="+91 9876543210"><small>Enter the number registered with the hospital, including country code.</small></label><button class="button button-primary" type="submit">Send verification code</button></form>`
+        app.innerHTML = `<main class="public-route"><section class="auth-card patient-portal-entry"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>MEDIQ PATIENT PORTAL</small></div></div><p class="eyebrow">SECURE PATIENT VERIFICATION</p><h1>Link your patient account</h1><p>Enter your MediQ Patient ID and the mobile number already registered with the hospital. We will send a one-time code to verify that you own that number. Your medical record stays private until verification succeeds.</p>${linkStep}${patientHospitalDetails}<button class="button button-secondary" data-action="patient-signout" type="button">Sign out</button></section></main>`
         return
       }
       const [patientResult, reportsResult, visitsResult, documentsResult, requestsResult, doctorsResult] = await Promise.all([
@@ -1044,6 +1049,11 @@ app.addEventListener('click', async (event) => {
       showToast('Could not resend confirmation email: ' + error.message, 'error')
     } finally { target.disabled = false }
   }
+  if (action === 'cancel-patient-link') {
+    pendingPatientLink = null
+    await renderPatientDashboard()
+    return
+  }
   if (action === 'patient-signout') { await supabase.auth.signOut(); await renderPatientDashboard() }
   if (action === 'view-medical-record') {
     const patient = state.patients.find((p) => p.id === target.dataset.id)
@@ -1197,6 +1207,68 @@ app.addEventListener('submit', async (event) => {
       note.textContent = /email not confirmed/i.test(error.message || '')
         ? 'Your email address is registered but not verified yet. Open the confirmation email in your inbox (or Spam), then return here and sign in. You can also use “Resend confirmation email”.'
         : error.message
+    }
+  }
+  if (event.target.id === 'patient-account-link-start') {
+    event.preventDefault()
+    const form = event.target
+    const data = new FormData(form)
+    const patientCode = String(data.get('patientCode') || '').trim().toUpperCase()
+    const phone = String(data.get('phone') || '').trim()
+    const submit = form.querySelector('button[type="submit"]')
+    submit.disabled = true
+    submit.textContent = 'Checking details…'
+    try {
+      const eligibility = await linkPatientAccount(supabase, { action: 'begin', patientCode, phone })
+      if (!eligibility?.eligible) throw new Error('We could not verify those details. Check your Patient ID and registered mobile number, or contact hospital reception.')
+      const { error } = await supabase.auth.updateUser({ phone })
+      if (error) {
+        if (/sms|phone|provider|twilio|messagebird|vonage/i.test(error.message || '')) {
+          throw new Error('SMS verification is not ready yet. The hospital must configure a phone OTP provider in Supabase before patients can receive codes.')
+        }
+        throw error
+      }
+      pendingPatientLink = { patientCode, phone }
+      await renderPatientDashboard()
+      showToast('Verification code sent. Check the registered mobile number.')
+    } catch (error) {
+      submit.disabled = false
+      submit.textContent = 'Send verification code'
+      const note = document.createElement('p')
+      note.className = 'form-guidance'
+      note.setAttribute('role', 'alert')
+      note.textContent = error.message
+      form.append(note)
+    }
+  }
+  if (event.target.id === 'patient-account-link-verify') {
+    event.preventDefault()
+    const form = event.target
+    const data = new FormData(form)
+    const otp = String(data.get('otp') || '').trim()
+    const submit = form.querySelector('button[type="submit"]')
+    submit.disabled = true
+    submit.textContent = 'Verifying…'
+    try {
+      if (!pendingPatientLink) throw new Error('Your verification session expired. Please enter your Patient ID and mobile number again.')
+      const { error: otpError } = await supabase.auth.verifyOtp({
+        phone: pendingPatientLink.phone,
+        token: otp,
+        type: 'phone_change',
+      })
+      if (otpError) throw otpError
+      await linkPatientAccount(supabase, { action: 'complete', patientCode: pendingPatientLink.patientCode })
+      pendingPatientLink = null
+      await renderPatientDashboard()
+      showToast('Your patient account is now securely linked.')
+    } catch (error) {
+      submit.disabled = false
+      submit.textContent = 'Verify & link my account'
+      const note = document.createElement('p')
+      note.className = 'form-guidance'
+      note.setAttribute('role', 'alert')
+      note.textContent = error.message
+      form.append(note)
     }
   }
   if (event.target.id === 'patient-id-card-application-form') {
