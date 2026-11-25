@@ -429,3 +429,9 @@ export async function reviewPatientIdCard(client, applicationId, decision, reaso
   })
   return unwrap(result)?.[0]
 }
+
+
+export async function verifyPatientIdCard(client, cardQrId) {
+  const result = await client.rpc('verify_patient_id_card', { p_card_qr_id: cardQrId })
+  return Boolean(unwrap(result)?.[0]?.valid)
+}
