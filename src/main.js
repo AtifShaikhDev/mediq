@@ -19,6 +19,7 @@ import {
   uploadPatientDocument,
   getPatientDocumentDownloadUrl,
   createPatientVisitRequest,
+  reviewPatientVisitRequest,
 } from './lib/api.js'
 import { isSupabaseConfigured, supabase, supabaseConfigError } from './lib/supabase.js'
 import { renderPublicRegistration } from './public-registration.js'
@@ -79,6 +80,7 @@ const state = {
   realtimeStatus: 'connecting',
   publicRows: [],
   publicRegistrationRetention: null,
+  visitRequests: [],
 }
 const app = document.querySelector('#app')
 const themeStorageKey = 'mediq-theme'
@@ -282,6 +284,7 @@ async function loadSignedInWorkspace(user, force = false) {
       state.patients = workspace.patients
       state.queues = workspace.queues
       state.staff = workspace.staff
+      state.visitRequests = workspace.visitRequests || []
       state.departmentRows = workspace.departments
       state.hospital = workspace.hospital
       try {
@@ -561,7 +564,10 @@ function patientsPage() {
     const matchesDepartment = state.departmentFilter === 'All departments' || patient.department === state.departmentFilter
     return matchesText && matchesStatus && matchesDepartment
   }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
-  return `${pageHeading('Patients', 'Manage patient records and registrations.', `${canRegister ? `<button class="button button-primary" data-action="open-register">${icon('plus')} Register patient</button>` : ''}`)}
+  const pendingRequestSection = ['Admin', 'Receptionist'].includes(state.profile.role)
+    ? `<section class="section-block"><div class="section-heading"><div><h2>Pending patient visit requests</h2><p>Approve to create a visit and queue token, or reject the request.</p></div><span class="access-note">${state.visitRequests.length} pending</span></div><div class="table-card"><div class="table-wrap"><table><thead><tr><th>PATIENT</th><th>DEPARTMENT</th><th>DOCTOR</th><th>REQUESTED</th><th>ACTION</th></tr></thead><tbody>${state.visitRequests.length ? state.visitRequests.map((request) => `<tr><td><strong>${escapeHtml(request.patient?.full_name || 'Patient')}</strong><small>${escapeHtml(request.patient?.patient_code || '')}</small></td><td>${escapeHtml(request.department?.name || '—')}</td><td>${escapeHtml(request.doctor?.full_name || '—')}</td><td>${escapeHtml(new Date(request.created_at).toLocaleString())}</td><td><button class="button button-primary button-small" data-action="review-visit-request" data-id="${escapeHtml(request.id)}" data-decision="approve">Approve</button> <button class="button button-secondary button-small" data-action="review-visit-request" data-id="${escapeHtml(request.id)}" data-decision="reject">Reject</button></td></tr>`).join('') : '<tr><td colspan="5" class="empty-cell">No pending visit requests.</td></tr>'}</tbody></table></div></div></section>`
+    : '';
+  return `${pendingRequestSection}${pageHeading('Patients', 'Manage patient records and registrations.', `${canRegister ? `<button class="button button-primary" data-action="open-register">${icon('plus')} Register patient</button>` : ''}`)}
     <div class="patient-summary-strip"><div><span class="summary-icon blue">${icon('users')}</span><span><strong>${state.patients.length}</strong><small>Total patient records</small></span></div><div><span class="summary-icon amber">${icon('clock')}</span><span><strong>${stats().waiting}</strong><small>Waiting today</small></span></div><div><span class="summary-icon teal">${icon('check')}</span><span><strong>${stats().completed}</strong><small>Visits completed</small></span></div></div>
     <section class="table-card patients-table-card"><div class="table-toolbar"><div><h2>Patient directory</h2><p>${filtered.length} patient${filtered.length === 1 ? '' : 's'} found</p></div><div class="table-filters"><label class="search-field">${icon('search')}<input id="patient-search" type="search" placeholder="Search patients..." value="${escapeHtml(state.search)}" aria-label="Search patients"></label><select id="patient-status-filter" aria-label="Filter by status"><option>All patients</option>${['Waiting', 'Serving', 'Completed'].map((status) => `<option ${state.patientFilter === status ? 'selected' : ''}>${status}</option>`).join('')}</select><select id="department-filter" aria-label="Filter by department"><option>All departments</option>${departments.map((department) => `<option ${state.departmentFilter === department ? 'selected' : ''}>${department}</option>`).join('')}</select></div></div>
       <div class="table-wrap"><table><thead><tr><th>PATIENT</th><th>DEPARTMENT</th><th>TOKEN</th><th>STATUS</th><th>ARRIVAL</th></tr></thead><tbody>${patientRows(filtered)}</tbody></table></div>
@@ -772,6 +778,7 @@ async function refreshWorkspace() {
   state.patients = workspace.patients
   state.queues = workspace.queues
   state.staff = workspace.staff
+  state.visitRequests = workspace.visitRequests || []
   state.departmentRows = workspace.departments
   state.hospital = workspace.hospital
   try {
@@ -934,6 +941,18 @@ app.addEventListener('click', async (event) => {
   if (action === 'close-modal') { state.modal = null; renderModal() }
   if (action === 'backdrop-close' && event.target === target) { state.modal = null; renderModal() }
   if (action === 'view-patient') { state.modal = { type: 'profile', id: target.dataset.id }; renderModal() }
+  if (action === 'review-visit-request') {
+    if (!['Admin', 'Receptionist'].includes(state.profile?.role)) { showToast('Only Admin or Reception can review visit requests.', 'error'); return }
+    target.disabled = true
+    try {
+      const result = await reviewPatientVisitRequest(supabase, { requestId: target.dataset.id, decision: target.dataset.decision })
+      await refreshWorkspace()
+      showToast(result.request_status === 'approved' ? `Visit approved. Queue token: ${result.queue_token}` : 'Visit request rejected.')
+    } catch (error) {
+      target.disabled = false
+      showToast('Could not review visit request: ' + error.message, 'error')
+    }
+  }
   if (action === 'download-report-pdf') window.print()
   if (action === 'patient-signout') { await supabase.auth.signOut(); await renderPatientDashboard() }
   if (action === 'view-medical-record') {
