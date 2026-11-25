@@ -228,10 +228,11 @@ async function handleRequest(
   let requestHash: string
   let fileHashes: string[] = []
   try {
-    fileHashes = await Promise.all(files.map(async (file) => {
-      const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
-      return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
-    }))
+    for (const file of files) {
+      const fileBytes = await file.arrayBuffer()
+      const digest = await crypto.subtle.digest('SHA-256', fileBytes)
+      fileHashes.push(Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(''))
+    }
     const canonicalPayload = files.length
       ? JSON.stringify({ registration, documents: files.map((file, index) => ({ name: file.name, size: file.size, type: file.type, sha256: fileHashes[index] })) })
       : JSON.stringify(registration)
