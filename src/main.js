@@ -1162,13 +1162,16 @@ app.addEventListener('submit', async (event) => {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
       if (sessionError) throw sessionError
       if (!sessionData.session?.user) throw new Error('Please sign in again before submitting your ID card.')
-      await submitPatientIdCardApplication(supabase, {
+      const issuedCard = await submitPatientIdCardApplication(supabase, {
         bloodGroup: String(data.get('bloodGroup') || ''),
         dateOfBirth: String(data.get('dateOfBirth') || ''),
         emergencyContactName: String(data.get('emergencyContactName') || '').trim(),
         emergencyContactPhone: String(data.get('emergencyContactPhone') || '').trim(),
         address: String(data.get('address') || '').trim(),
       })
+      if (issuedCard?.status !== 'approved' || !issuedCard?.card_qr_id) {
+        throw new Error('The card was submitted, but automatic issuance could not be confirmed. Please refresh and check your card status.')
+      }
       await renderPatientDashboard()
     } catch (error) {
       submit.disabled = false
