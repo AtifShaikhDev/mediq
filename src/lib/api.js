@@ -435,3 +435,19 @@ export async function verifyPatientIdCard(client, cardQrId) {
   const result = await client.rpc('verify_patient_id_card', { p_card_qr_id: cardQrId })
   return Boolean(unwrap(result)?.[0]?.valid)
 }
+
+
+export async function linkPatientAccount(client, payload) {
+  const result = await client.functions.invoke('link-patient-account', { body: payload })
+  if (!result.error) return result.data
+  const context = result.error.context
+  if (context instanceof Response) {
+    try {
+      const body = await context.clone().json()
+      if (typeof body?.error === 'string') throw new Error(body.error)
+    } catch (error) {
+      if (error instanceof Error && error.message !== result.error.message) throw error
+    }
+  }
+  throw result.error
+}
