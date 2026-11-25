@@ -276,13 +276,13 @@ async function handleRequest(
     const record = await adminClient.findPatientVisit(result.patient_code)
     if (!record) {
       dependencies.logError('Public registration created but patient record lookup failed.')
-      return jsonResponse(origin, { error: 'Registration was created, but documents could not be attached. Contact reception with your Patient ID.' }, 201)
+      return jsonResponse(origin, { error: 'Your registration was created, but documents could not be attached. Please retry once; if it still fails, contact reception with your Patient ID.', patientId: result.patient_code, token: result.token, dashboardToken }, 503)
     }
     for (const [fileIndex, file] of files.entries()) {
       try { await adminClient.uploadPatientFile(record.patientId, record.visitId, file, idempotencyKey, fileIndex, fileHashes[fileIndex]) }
       catch (error) {
         dependencies.logError('Public registration document upload failed.', { errorName: error instanceof Error ? error.name : 'UnknownError' })
-        return jsonResponse(origin, { error: 'Registration was created, but a document could not be attached. Contact reception with your Patient ID.' }, 201)
+        return jsonResponse(origin, { error: 'Your registration was created, but a document could not be attached. Please retry once; if it still fails, contact reception with your Patient ID.', patientId: result.patient_code, token: result.token, dashboardToken }, 503)
       }
     }
   }
