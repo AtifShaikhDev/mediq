@@ -889,3 +889,38 @@ body.public-registration-page { min-width: 0; }
 .hospital-profile-settings .form-grid {
   margin: 1rem 0;
 }
+
+
+/* Two-sided MediQ patient ID card */
+.patient-id-card-application { margin: 22px 0; padding: 20px; border: 1px solid var(--line); border-radius: 16px; }
+.patient-id-card { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin: 16px 0; }
+.patient-id-card-front, .patient-id-card-back { min-height: 220px; padding: 18px; border: 1px solid #cbdce8; border-radius: 15px; background: linear-gradient(145deg, #f4fbff, #e8f2fa); color: #19374c; display: flex; flex-direction: column; justify-content: space-between; gap: 15px; }
+.patient-id-card-brand { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.patient-id-card-brand strong { font-size: 20px; letter-spacing: .12em; }
+.patient-id-card-brand span { font-size: 9px; letter-spacing: .13em; font-weight: 800; }
+.patient-id-card-main { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.patient-id-card-main > div:first-child { display: grid; gap: 5px; min-width: 0; }
+.patient-id-card-main small, .patient-id-card-meta span { color: #60798c; font-size: 9px; letter-spacing: .08em; }
+.patient-id-card-main strong { overflow-wrap: anywhere; font-size: 17px; }
+.patient-id-card-main b { font-size: 12px; letter-spacing: .06em; }
+.patient-id-card-qr { width: 90px; height: 90px; flex: 0 0 90px; display: grid; place-items: center; background: white; border-radius: 8px; padding: 5px; }
+.patient-id-card-qr img, .patient-id-card-qr canvas { max-width: 100%; max-height: 100%; }
+.patient-id-card-meta { display: flex; justify-content: space-between; gap: 12px; border-top: 1px solid #cbdce8; padding-top: 10px; }
+.patient-id-card-meta span { display: grid; gap: 4px; }
+.patient-id-card-meta strong { color: #19374c; font-size: 12px; }
+.patient-id-card-back > strong { font-size: 15px; letter-spacing: .06em; }
+.patient-id-card-back p { margin: 0; font-size: 11px; overflow-wrap: anywhere; }
+.patient-id-card-back small { margin-top: auto; line-height: 1.5; color: #60798c; }
+@media (max-width: 700px) { .patient-id-card { grid-template-columns: 1fr; } }
+@media print {
+  body:has(.patient-account-dashboard) * { visibility: hidden !important; }
+  .patient-account-dashboard .patient-id-card-application,
+  .patient-account-dashboard .patient-id-card-application * { visibility: visible !important; }
+  .patient-account-dashboard .patient-id-card-application { position: absolute; inset: 0; width: 100%; margin: 0; padding: 12mm; border: 0; }
+  .patient-id-card { grid-template-columns: 1fr 1fr; gap: 8mm; }
+  .patient-id-card-front, .patient-id-card-back { min-height: 70mm; break-inside: avoid; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+  .patient-id-card-application > h2,
+  .patient-id-card-application > p,
+  .patient-id-card-application > form,
+  .patient-id-card-application > button { display: none !important; }
+}
