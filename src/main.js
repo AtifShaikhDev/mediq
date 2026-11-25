@@ -85,6 +85,7 @@ const state = {
   publicRows: [],
   publicRegistrationRetention: null,
   visitRequests: [],
+  patientIdCardApplications: [],
 }
 const app = document.querySelector('#app')
 const themeStorageKey = 'mediq-theme'
@@ -289,6 +290,14 @@ async function loadSignedInWorkspace(user, force = false) {
       state.queues = workspace.queues
       state.staff = workspace.staff
       state.visitRequests = workspace.visitRequests || []
+      state.patientIdCardApplications = []
+      if (workspace.profile.role === 'Admin') {
+        const { data: pendingCards, error: pendingCardsError } = await supabase.from('patient_id_card_applications')
+          .select('id,patient_id,blood_group,status,submitted_at,patient:patients(id,patient_code,full_name,mobile)')
+          .eq('status', 'pending').order('submitted_at', { ascending: true }).limit(200)
+        if (pendingCardsError) throw pendingCardsError
+        state.patientIdCardApplications = pendingCards || []
+      }
       state.departmentRows = workspace.departments
       state.hospital = workspace.hospital
       try {
@@ -583,10 +592,13 @@ function patientsPage() {
     const matchesDepartment = state.departmentFilter === 'All departments' || patient.department === state.departmentFilter
     return matchesText && matchesStatus && matchesDepartment
   }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  const pendingIdCardSection = state.profile.role === 'Admin'
+    ? `<section class="section-block"><div class="section-heading"><div><h2>Pending Digital Patient ID Cards</h2><p>Verify patient details before issuing cards.</p></div><span class="access-note">${state.patientIdCardApplications.length} pending</span></div><div class="table-card"><div class="table-wrap"><table><thead><tr><th>PATIENT</th><th>CONTACT</th><th>BLOOD GROUP</th><th>SUBMITTED</th><th>ACTION</th></tr></thead><tbody>${state.patientIdCardApplications.length ? state.patientIdCardApplications.map(a => `<tr><td><strong>${escapeHtml(a.patient?.full_name || 'Patient')}</strong><small>${escapeHtml(a.patient?.patient_code || '')}</small></td><td>${escapeHtml(a.patient?.mobile || '—')}</td><td>${escapeHtml(a.blood_group || 'Not provided')}</td><td>${escapeHtml(new Date(a.submitted_at).toLocaleDateString())}</td><td><button class="button button-primary button-small" data-action="review-patient-id-card" data-id="${escapeHtml(a.id)}" data-decision="approved">Approve</button> <button class="button button-secondary button-small" data-action="review-patient-id-card" data-id="${escapeHtml(a.id)}" data-decision="rejected">Reject</button></td></tr>`).join('') : '<tr><td colspan="5" class="empty-cell">No pending card applications.</td></tr>'}</tbody></table></div></div></section>`
+    : '';
   const pendingRequestSection = ['Admin', 'Receptionist'].includes(state.profile.role)
     ? `<section class="section-block"><div class="section-heading"><div><h2>Pending patient visit requests</h2><p>Approve to create a visit and queue token, or reject the request.</p></div><span class="access-note">${state.visitRequests.length} pending</span></div><div class="table-card"><div class="table-wrap"><table><thead><tr><th>PATIENT</th><th>DEPARTMENT</th><th>DOCTOR</th><th>REQUESTED</th><th>ACTION</th></tr></thead><tbody>${state.visitRequests.length ? state.visitRequests.map((request) => `<tr><td><strong>${escapeHtml(request.patient?.full_name || 'Patient')}</strong><small>${escapeHtml(request.patient?.patient_code || '')}</small></td><td>${escapeHtml(request.department?.name || '—')}</td><td>${escapeHtml(request.doctor?.full_name || '—')}</td><td>${escapeHtml(new Date(request.created_at).toLocaleString())}</td><td><button class="button button-primary button-small" data-action="review-visit-request" data-id="${escapeHtml(request.id)}" data-decision="approve">Approve</button> <button class="button button-secondary button-small" data-action="review-visit-request" data-id="${escapeHtml(request.id)}" data-decision="reject">Reject</button></td></tr>`).join('') : '<tr><td colspan="5" class="empty-cell">No pending visit requests.</td></tr>'}</tbody></table></div></div></section>`
     : '';
-  return `${pendingRequestSection}${pageHeading('Patients', 'Manage patient records and registrations.', `${canRegister ? `<button class="button button-primary" data-action="open-register">${icon('plus')} Register patient</button>` : ''}`)}
+  return `${pendingIdCardSection}${pendingRequestSection}${pageHeading('Patients', 'Manage patient records and registrations.', `${canRegister ? `<button class="button button-primary" data-action="open-register">${icon('plus')} Register patient</button>` : ''}`)}
     <div class="patient-summary-strip"><div><span class="summary-icon blue">${icon('users')}</span><span><strong>${state.patients.length}</strong><small>Total patient records</small></span></div><div><span class="summary-icon amber">${icon('clock')}</span><span><strong>${stats().waiting}</strong><small>Waiting today</small></span></div><div><span class="summary-icon teal">${icon('check')}</span><span><strong>${stats().completed}</strong><small>Visits completed</small></span></div></div>
     <section class="table-card patients-table-card"><div class="table-toolbar"><div><h2>Patient directory</h2><p>${filtered.length} patient${filtered.length === 1 ? '' : 's'} found</p></div><div class="table-filters"><label class="search-field">${icon('search')}<input id="patient-search" type="search" placeholder="Search patients..." value="${escapeHtml(state.search)}" aria-label="Search patients"></label><select id="patient-status-filter" aria-label="Filter by status"><option>All patients</option>${['Waiting', 'Serving', 'Completed'].map((status) => `<option ${state.patientFilter === status ? 'selected' : ''}>${status}</option>`).join('')}</select><select id="department-filter" aria-label="Filter by department"><option>All departments</option>${departments.map((department) => `<option ${state.departmentFilter === department ? 'selected' : ''}>${department}</option>`).join('')}</select></div></div>
       <div class="table-wrap"><table><thead><tr><th>PATIENT</th><th>DEPARTMENT</th><th>TOKEN</th><th>STATUS</th><th>ARRIVAL</th></tr></thead><tbody>${patientRows(filtered)}</tbody></table></div>
@@ -960,6 +972,27 @@ app.addEventListener('click', async (event) => {
   if (action === 'close-modal') { state.modal = null; renderModal() }
   if (action === 'backdrop-close' && event.target === target) { state.modal = null; renderModal() }
   if (action === 'view-patient') { state.modal = { type: 'profile', id: target.dataset.id }; renderModal() }
+  if (action === 'review-patient-id-card') {
+    if (state.profile?.role !== 'Admin') { showToast('Only Admin can approve patient ID cards.', 'error'); return }
+    const decision = target.dataset.decision
+    let reason = null
+    if (decision === 'rejected') {
+      reason = window.prompt('Enter a reason for rejecting this card application:')
+      if (!reason?.trim()) { showToast('A rejection reason is required.', 'error'); return }
+    }
+    target.disabled = true
+    try {
+      const { error } = await supabase.rpc('review_patient_id_card_application', {
+        p_application_id: target.dataset.id, p_decision: decision, p_rejection_reason: reason,
+      })
+      if (error) throw error
+      await refreshWorkspace()
+      showToast(decision === 'approved' ? 'Patient ID card approved.' : 'Card application rejected.')
+    } catch (error) {
+      target.disabled = false
+      showToast('Could not review card application: ' + error.message, 'error')
+    }
+  }
   if (action === 'review-visit-request') {
     if (!['Admin', 'Receptionist'].includes(state.profile?.role)) { showToast('Only Admin or Reception can review visit requests.', 'error'); return }
     target.disabled = true
