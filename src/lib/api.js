@@ -407,7 +407,6 @@ export async function loadPatientIdCardApplication(client, patientId) {
 
 export async function submitPatientIdCardApplication(client, application) {
   const result = await client.rpc('submit_patient_id_card_application', {
-    p_patient_id: application.patientId,
     p_blood_group: application.bloodGroup || null,
     p_date_of_birth: application.dateOfBirth || null,
     p_emergency_contact_name: application.emergencyContactName || null,
