@@ -16,7 +16,7 @@ type RpcResult = { data: unknown; error: RpcError | null }
 
 export type PublicRegistrationClient = {
   rpc: (name: string, parameters: Record<string, unknown>) => PromiseLike<RpcResult>
-  findPatientVisit: (patientCode: string) => Promise<{ patientId: string; visitId: string } | null>
+  findRegistrationVisit: (idempotencyKey: string) => Promise<{ patientId: string; visitId: string } | null>
   uploadPatientFile: (patientId: string, visitId: string, file: File, idempotencyKey: string, fileIndex: number, fileHash: string) => Promise<void>
 }
 
@@ -307,7 +307,7 @@ async function handleRequest(
   }
 
   if (files.length) {
-    const record = await adminClient.findPatientVisit(result.patient_code)
+    const record = await adminClient.findRegistrationVisit(idempotencyKey)
     if (!record) {
       dependencies.logError('Public registration created but patient record lookup failed.')
       return jsonResponse(origin, { error: 'Your registration was created, but documents could not be attached. Please retry once; if it still fails, contact reception with your Patient ID.', patientId: result.patient_code, token: result.token, dashboardToken }, 503)
