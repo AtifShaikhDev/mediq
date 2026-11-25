@@ -1147,7 +1147,8 @@ app.addEventListener('submit', async (event) => {
     submit.disabled = true
     try {
       if (form.id === 'patient-account-signup') {
-        const { error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: String(data.get('fullName')).trim(), account_type: 'patient' } } })
+        const emailRedirectTo = new URL('patient', `${window.location.origin}${appBase}`).toString()
+        const { error } = await supabase.auth.signUp({ email, password, options: { emailRedirectTo, data: { full_name: String(data.get('fullName')).trim(), account_type: 'patient' } } })
         if (error) throw error
         await renderPatientDashboard()
       } else {
