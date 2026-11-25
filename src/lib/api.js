@@ -43,7 +43,7 @@ export async function loadWorkspace(client, user) {
   const departmentRows = unwrap(departmentsResult)
   const settings = unwrap(settingsResult)
 
-  const [patientsResult, queueResult, staffResult] = await Promise.all([
+  const [patientsResult, queueResult, staffResult, visitRequestsResult] = await Promise.all([
     client.from('patients')
       .select('id,patient_code,full_name,age,gender,mobile,created_at')
       .order('created_at', { ascending: false })
@@ -55,10 +55,14 @@ export async function loadWorkspace(client, user) {
     client.from('staff_profiles')
       .select('user_id,email,full_name,role,active,department_id,department:departments(name)')
       .order('full_name'),
+    ['Admin', 'Receptionist'].includes(profile.role)
+      ? client.from('patient_visit_requests').select('id,status,created_at,patient:patients(full_name,patient_code,mobile),department:departments(name),doctor:staff_profiles(full_name)').eq('status', 'pending').order('created_at', { ascending: true }).limit(100)
+      : Promise.resolve({ data: [], error: null }),
   ])
   const patientRows = unwrap(patientsResult)
   const queueRows = unwrap(queueResult)
   const staffRows = unwrap(staffResult)
+  const visitRequests = unwrap(visitRequestsResult) || []
   const queues = queueRows.map(mapQueue)
   const latestVisitByPatient = new Map()
   queues.forEach((queue) => {
@@ -93,6 +97,7 @@ export async function loadWorkspace(client, user) {
     patients,
     queues,
     staff,
+    visitRequests,
   }
 }
 
@@ -380,6 +385,14 @@ export async function createPatientVisitRequest(client, { departmentId, doctorUs
   const result = await client.rpc('create_patient_visit_request', {
     p_department_id: departmentId,
     p_doctor_user_id: doctorUserId,
+  })
+  return unwrap(result)?.[0]
+}
+
+export async function reviewPatientVisitRequest(client, { requestId, decision }) {
+  const result = await client.rpc('review_patient_visit_request', {
+    p_request_id: requestId,
+    p_decision: decision,
   })
   return unwrap(result)?.[0]
 }
