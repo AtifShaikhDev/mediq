@@ -72,6 +72,25 @@ function getClientIp(request: Request) {
   return request.headers.get('cf-connecting-ip')?.trim() || ''
 }
 
+function hasValidFileSignature(file: File, bytes: ArrayBuffer) {
+  const header = new Uint8Array(bytes.slice(0, 8))
+  const startsWith = (...values: number[]) => values.every((value, index) => header[index] === value)
+  switch (file.type) {
+    case 'application/pdf':
+      return new TextDecoder().decode(header.slice(0, 5)) === '%PDF-'
+    case 'image/jpeg':
+      return startsWith(0xff, 0xd8, 0xff)
+    case 'image/png':
+      return startsWith(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)
+    case 'application/msword':
+      return startsWith(0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1)
+    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+      return startsWith(0x50, 0x4b, 0x03, 0x04)
+    default:
+      return false
+  }
+}
+
 async function hmacHex(secret: string, value: string) {
   const key = await crypto.subtle.importKey(
     'raw',
@@ -230,6 +249,9 @@ async function handleRequest(
   try {
     for (const file of files) {
       const fileBytes = await file.arrayBuffer()
+      if (!hasValidFileSignature(file, fileBytes)) {
+        return jsonResponse(origin, { error: 'One of the selected files does not match its file type. Please choose a valid PDF, JPG, PNG, DOC, or DOCX file.' }, 400)
+      }
       const digest = await crypto.subtle.digest('SHA-256', fileBytes)
       fileHashes.push(Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(''))
     }
