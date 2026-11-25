@@ -189,8 +189,9 @@ async function handleRequest(
   if (request.method !== 'POST') {
     return jsonResponse(origin, { error: 'Method not allowed.' }, 405, { Allow: 'POST, OPTIONS' })
   }
-  if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) {
-    return jsonResponse(origin, { error: 'Expected a JSON request.' }, 415)
+  const requestContentType = request.headers.get('content-type')?.toLowerCase() || ''
+  if (!requestContentType.startsWith('application/json') && !requestContentType.startsWith('multipart/form-data')) {
+    return jsonResponse(origin, { error: 'Expected registration details and optional documents.' }, 415)
   }
   const contentLength = Number(request.headers.get('content-length') || 0)
   if (contentLength > maxBodyBytes) return jsonResponse(origin, { error: 'Registration request is too large.' }, 413)
