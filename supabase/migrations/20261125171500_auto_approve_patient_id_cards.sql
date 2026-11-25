@@ -130,3 +130,8 @@ with check (
   and exists (select 1 from public.patient_accounts pa
     where pa.patient_id = patient_id_card_applications.patient_id and pa.user_id = (select auth.uid()))
 );
+
+create index if not exists patient_id_card_applications_reviewed_by_idx
+  on public.patient_id_card_applications(reviewed_by);
+create index if not exists patient_id_card_applications_submitted_by_idx
+  on public.patient_id_card_applications(submitted_by);
