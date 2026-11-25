@@ -396,3 +396,51 @@ export async function reviewPatientVisitRequest(client, { requestId, decision })
   })
   return unwrap(result)?.[0]
 }
+
+
+export async function loadPatientIdCardApplication(client, patientId) {
+  const result = await client.from('patient_id_card_applications')
+    .select('id,patient_id,blood_group,date_of_birth,emergency_contact_name,emergency_contact_phone,address,status,card_qr_id,submitted_at,reviewed_at,rejection_reason')
+    .eq('patient_id', patientId).maybeSingle()
+  return unwrap(result)
+}
+
+export async function submitPatientIdCardApplication(client, application) {
+  const { data: sessionData, error: sessionError } = await client.auth.getSession()
+  if (sessionError) throw sessionError
+  const userId = sessionData.session?.user?.id
+  if (!userId) throw new Error('Please sign in again.')
+  const payload = {
+    patient_id: application.patientId,
+    submitted_by: userId,
+    blood_group: application.bloodGroup || null,
+    date_of_birth: application.dateOfBirth || null,
+    emergency_contact_name: application.emergencyContactName || null,
+    emergency_contact_phone: application.emergencyContactPhone || null,
+    address: application.address || null,
+  }
+  const existing = await loadPatientIdCardApplication(client, application.patientId)
+  if (existing?.status === 'rejected') {
+    const result = await client.from('patient_id_card_applications').update({
+      ...payload, status: 'pending', reviewed_by: null, reviewed_at: null, rejection_reason: null,
+    }).eq('id', existing.id).select('id,status').single()
+    return unwrap(result)
+  }
+  if (existing) throw new Error('A card application already exists. Check its current status.')
+  const result = await client.from('patient_id_card_applications').insert(payload).select('id,status').single()
+  return unwrap(result)
+}
+
+export async function loadPendingPatientIdCards(client) {
+  const result = await client.from('patient_id_card_applications')
+    .select('id,patient_id,blood_group,date_of_birth,emergency_contact_name,emergency_contact_phone,address,status,card_qr_id,submitted_at,patient:patients(id,patient_code,full_name,mobile)')
+    .eq('status','pending').order('submitted_at',{ascending:true}).limit(200)
+  return unwrap(result) || []
+}
+
+export async function reviewPatientIdCard(client, applicationId, decision, reason = null) {
+  const result = await client.rpc('review_patient_id_card_application', {
+    p_application_id: applicationId, p_decision: decision, p_rejection_reason: reason,
+  })
+  return unwrap(result)?.[0]
+}
