@@ -371,7 +371,7 @@ async function renderPatientDashboard() {
         app.innerHTML = `<main class="public-route"><section class="auth-card patient-portal-entry"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>MEDIQ PATIENT PORTAL</small></div></div><h1>Account awaiting hospital link</h1><p>Your account is signed in, but it has not yet been linked to a verified MediQ patient record. Hospital reception must verify and connect your patient profile before private medical records can appear.</p>${patientHospitalDetails}<p>For registration and account linking, please contact the hospital reception team.</p><button class="button button-secondary" data-action="patient-signout" type="button">Sign out</button></section></main>`
         return
       }
-      const [patientResult, reportsResult, visitsResult, documentsResult, requestsResult, departmentsResult, doctorsResult] = await Promise.all([
+      const [patientResult, reportsResult, visitsResult, documentsResult, requestsResult, doctorsResult] = await Promise.all([
         supabase.from('patients').select('id,patient_code,full_name,age,gender').eq('id', link.patient_id).single(),
         supabase.from('doctor_reports').select('id,report_title,diagnosis,examination,treatment_plan,follow_up_instructions,follow_up_date,finalized_at,created_at').eq('patient_id', link.patient_id).eq('status', 'finalized').order('finalized_at', { ascending: false }),
         supabase.from('visits').select('id,status,arrived_at,department:departments(name)').eq('patient_id', link.patient_id).order('arrived_at', { ascending: false }).limit(20),
