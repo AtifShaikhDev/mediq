@@ -232,7 +232,9 @@ async function handleRequest(
       const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
       return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
     }))
-    const canonicalPayload = JSON.stringify({ registration, documents: files.map((file, index) => ({ name: file.name, size: file.size, type: file.type, sha256: fileHashes[index] })) })
+    const canonicalPayload = files.length
+      ? JSON.stringify({ registration, documents: files.map((file, index) => ({ name: file.name, size: file.size, type: file.type, sha256: fileHashes[index] })) })
+      : JSON.stringify(registration)
     requestHash = await hmacHex(fingerprintSecret, `payload:${canonicalPayload}`)
   } catch {
     dependencies.logError('Public registration fingerprinting failed.')
