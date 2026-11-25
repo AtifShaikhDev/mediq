@@ -249,7 +249,7 @@ async function loadSignedInWorkspace(user, force = false) {
   state.user = user
   renderLoading()
   workspaceLoadPromise = loadWorkspace(supabase, user)
-    .then((workspace) => {
+    .then(async (workspace) => {
       if (!workspace.profile) {
         state.profile = null
         lastLoadedUserId = null
