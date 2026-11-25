@@ -18,6 +18,7 @@ import {
   finalizeDoctorReport,
   uploadPatientDocument,
   getPatientDocumentDownloadUrl,
+  createPatientVisitRequest,
 } from './lib/api.js'
 import { isSupabaseConfigured, supabase, supabaseConfigError } from './lib/supabase.js'
 import { renderPublicRegistration } from './public-registration.js'
@@ -363,22 +364,32 @@ async function renderPatientDashboard() {
         app.innerHTML = `<main class="public-route"><section class="auth-card patient-portal-entry"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>MEDIQ PATIENT PORTAL</small></div></div><h1>Account awaiting hospital link</h1><p>Your account is signed in, but it has not yet been linked to a verified MediQ patient record. Hospital reception must verify and connect your patient profile before private medical records can appear.</p>${patientHospitalDetails}<p>For registration and account linking, please contact the hospital reception team.</p><button class="button button-secondary" data-action="patient-signout" type="button">Sign out</button></section></main>`
         return
       }
-      const [patientResult, reportsResult, visitsResult, documentsResult] = await Promise.all([
+      const [patientResult, reportsResult, visitsResult, documentsResult, requestsResult, departmentsResult, doctorsResult] = await Promise.all([
         supabase.from('patients').select('id,patient_code,full_name,age,gender').eq('id', link.patient_id).single(),
         supabase.from('doctor_reports').select('id,report_title,diagnosis,examination,treatment_plan,follow_up_instructions,follow_up_date,finalized_at,created_at').eq('patient_id', link.patient_id).eq('status', 'finalized').order('finalized_at', { ascending: false }),
         supabase.from('visits').select('id,status,arrived_at,department:departments(name)').eq('patient_id', link.patient_id).order('arrived_at', { ascending: false }).limit(20),
         supabase.from('patient_documents').select('id,file_name,storage_path,mime_type,file_size_bytes,created_at').eq('patient_id', link.patient_id).eq('visibility', 'patient_visible').order('created_at', { ascending: false }).limit(50),
+        supabase.from('patient_visit_requests').select('id,status,created_at,reviewed_at,department:departments(name),doctor:staff_profiles(full_name)').eq('patient_id', link.patient_id).order('created_at', { ascending: false }).limit(20),
+        supabase.from('departments').select('id,name').eq('active', true).order('name'),
+        supabase.rpc('get_public_doctor_directory'),
       ])
-      if (patientResult.error) throw patientResult.error
-      if (reportsResult.error) throw reportsResult.error
-      if (visitsResult.error) throw visitsResult.error
-      if (documentsResult.error) throw documentsResult.error
+      for (const result of [patientResult, reportsResult, visitsResult, documentsResult, requestsResult, departmentsResult, doctorsResult]) {
+        if (result.error) throw result.error
+      }
       const patient = patientResult.data
       const reports = reportsResult.data || []
       const visits = visitsResult.data || []
       const patientDocuments = documentsResult.data || []
+      const visitRequests = requestsResult.data || []
+      const activeDepartments = departmentsResult.data || []
+      const activeDoctors = doctorsResult.data || []
+      const visitRequestOptions = activeDoctors.map((doctor) => {
+        const department = activeDepartments.find((item) => item.name === doctor.department_name)
+        return department ? '<option value="' + escapeHtml(department.id + '|' + doctor.user_id) + '">' + escapeHtml(department.name + ' — ' + doctor.full_name) + '</option>' : ''
+      }).join('')
+      const visitRequestRows = visitRequests.map((request) => '<article class="medical-record-item"><strong>' + escapeHtml(request.department?.name || 'Department') + ' — ' + escapeHtml(request.doctor?.full_name || 'Doctor') + '</strong><p>Status: ' + escapeHtml(request.status) + '</p><small>Requested ' + escapeHtml(new Date(request.created_at).toLocaleString()) + '</small></article>').join('')
       const patientDocumentRows = patientDocuments.map(d => '<article class="medical-record-item"><strong>' + escapeHtml(d.file_name) + '</strong><small>' + escapeHtml(new Date(d.created_at).toLocaleDateString()) + '</small> <button class="button button-secondary button-small" data-action="download-patient-document" data-path="' + escapeHtml(d.storage_path) + '">Download</button></article>').join('')
-      app.innerHTML = `<main class="public-route"><section class="auth-card patient-account-dashboard"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>PRIVATE PATIENT PORTAL</small></div></div>${patientHospitalDetails}<p>Welcome to your secure hospital patient dashboard.</p><div class="modal-heading"><div><p class="eyebrow">YOUR MEDICAL SPACE</p><h1>Welcome, ${escapeHtml(patient.full_name)}</h1><p>${escapeHtml(patient.patient_code || '')}</p></div><button class="button button-secondary" data-action="patient-signout" type="button">Sign out</button></div><h2>My details</h2><p>Age: ${patient.age} · ${escapeHtml(patient.gender)}</p><h2>My visit history</h2>${visits.map(v => '<article class="medical-record-item"><strong>' + escapeHtml(v.department?.name || 'Hospital visit') + '</strong><p>' + escapeHtml(v.status) + ' · ' + escapeHtml(new Date(v.arrived_at).toLocaleDateString()) + '</p></article>').join('') || '<p>No visit history available.</p>'}<div class="modal-heading"><h2>Finalized doctor reports</h2><button class="button button-secondary button-small" data-action="download-report-pdf" type="button">Print / Save PDF</button></div>${reports.map(r => '<article class="medical-record-item"><strong>' + escapeHtml(r.report_title) + '</strong><p><b>Diagnosis:</b> ' + escapeHtml(r.diagnosis || 'Not recorded') + '</p><p><b>Examination:</b> ' + escapeHtml(r.examination || 'Not recorded') + '</p><p><b>Treatment plan:</b> ' + escapeHtml(r.treatment_plan || 'Not recorded') + '</p><p><b>Instructions:</b> ' + escapeHtml(r.follow_up_instructions || 'Not recorded') + '</p><small>Finalized ' + escapeHtml(new Date(r.finalized_at).toLocaleDateString()) + '</small></article>').join('') || '<p>No finalized reports are available yet.</p>'}<h2>My documents</h2>${patientDocumentRows || '<p>No patient-visible documents available yet.</p>'}</section></main>`
+      app.innerHTML = `<main class="public-route"><section class="auth-card patient-account-dashboard"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>PRIVATE PATIENT PORTAL</small></div></div>${patientHospitalDetails}<p>Welcome to your secure hospital patient dashboard.</p><div class="modal-heading"><div><p class="eyebrow">YOUR MEDICAL SPACE</p><h1>Welcome, ${escapeHtml(patient.full_name)}</h1><p>${escapeHtml(patient.patient_code || '')}</p></div><button class="button button-secondary" data-action="patient-signout" type="button">Sign out</button></div><h2>My details</h2><p>Age: ${patient.age} · ${escapeHtml(patient.gender)}</p><h2>My visit history</h2>${visits.map(v => '<article class="medical-record-item"><strong>' + escapeHtml(v.department?.name || 'Hospital visit') + '</strong><p>' + escapeHtml(v.status) + ' · ' + escapeHtml(new Date(v.arrived_at).toLocaleDateString()) + '</p></article>').join('') || '<p>No visit history available.</p>'}<div class="modal-heading"><h2>Finalized doctor reports</h2><button class="button button-secondary button-small" data-action="download-report-pdf" type="button">Print / Save PDF</button></div>${reports.map(r => '<article class="medical-record-item"><strong>' + escapeHtml(r.report_title) + '</strong><p><b>Diagnosis:</b> ' + escapeHtml(r.diagnosis || 'Not recorded') + '</p><p><b>Examination:</b> ' + escapeHtml(r.examination || 'Not recorded') + '</p><p><b>Treatment plan:</b> ' + escapeHtml(r.treatment_plan || 'Not recorded') + '</p><p><b>Instructions:</b> ' + escapeHtml(r.follow_up_instructions || 'Not recorded') + '</p><small>Finalized ' + escapeHtml(new Date(r.finalized_at).toLocaleDateString()) + '</small></article>').join('') || '<p>No finalized reports are available yet.</p>'}<h2>Request a new visit</h2><p>Choose a department and doctor. Your request must be approved by hospital reception before a queue token is created.</p><form id="patient-visit-request-form" class="modal-form"><label class="form-field"><span>Department and doctor</span><select name="doctorChoice" required><option value="">Choose a department and doctor</option>${visitRequestOptions}</select></label><button class="button button-primary" type="submit" ${visitRequestOptions ? '' : 'disabled'}>Submit visit request</button></form><h2>My visit requests</h2>${visitRequestRows || '<p>You have not requested a new visit.</p>'}<h2>My documents</h2>${patientDocumentRows || '<p>No patient-visible documents available yet.</p>'}</section></main>`
     }
     try { await renderPatientAccount() } catch (error) {
       app.innerHTML = '<main class="public-route"><section class="auth-card"><h1>Patient portal unavailable</h1><p>' + escapeHtml(error.message) + '</p><button class="button button-secondary" onclick="location.reload()">Try again</button></section></main>'
@@ -1066,6 +1077,27 @@ app.addEventListener('submit', async (event) => {
       note.setAttribute('role', 'alert')
       note.textContent = error.message
       form.prepend(note)
+    }
+  }
+  if (event.target.id === 'patient-visit-request-form') {
+    event.preventDefault()
+    const form = event.target
+    const [departmentId, doctorUserId] = String(new FormData(form).get('doctorChoice') || '').split('|')
+    const submit = form.querySelector('button[type="submit"]')
+    if (!departmentId || !doctorUserId) return
+    submit.disabled = true
+    submit.textContent = 'Submitting request…'
+    try {
+      await createPatientVisitRequest(supabase, { departmentId, doctorUserId })
+      await renderPatientDashboard()
+    } catch (error) {
+      const note = document.createElement('p')
+      note.className = 'form-guidance'
+      note.setAttribute('role', 'alert')
+      note.textContent = error.message || 'Could not submit your visit request.'
+      form.prepend(note)
+      submit.disabled = false
+      submit.textContent = 'Submit visit request'
     }
   }
   if (event.target.id === 'sign-in-form') {
