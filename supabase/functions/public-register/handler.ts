@@ -75,6 +75,15 @@ function getClientIp(request: Request) {
 function hasValidFileSignature(file: File, bytes: ArrayBuffer) {
   const header = new Uint8Array(bytes.slice(0, 8))
   const startsWith = (...values: number[]) => values.every((value, index) => header[index] === value)
+  const extension = file.name.toLowerCase().split('.').pop() || ''
+  const extensionMatchesType: Record<string, string[]> = {
+    'application/pdf': ['pdf'],
+    'image/jpeg': ['jpg', 'jpeg'],
+    'image/png': ['png'],
+    'application/msword': ['doc'],
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['docx'],
+  }
+  if (!extensionMatchesType[file.type]?.includes(extension)) return false
   switch (file.type) {
     case 'application/pdf':
       return new TextDecoder().decode(header.slice(0, 5)) === '%PDF-'
