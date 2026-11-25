@@ -406,29 +406,15 @@ export async function loadPatientIdCardApplication(client, patientId) {
 }
 
 export async function submitPatientIdCardApplication(client, application) {
-  const { data: sessionData, error: sessionError } = await client.auth.getSession()
-  if (sessionError) throw sessionError
-  const userId = sessionData.session?.user?.id
-  if (!userId) throw new Error('Please sign in again.')
-  const payload = {
-    patient_id: application.patientId,
-    submitted_by: userId,
-    blood_group: application.bloodGroup || null,
-    date_of_birth: application.dateOfBirth || null,
-    emergency_contact_name: application.emergencyContactName || null,
-    emergency_contact_phone: application.emergencyContactPhone || null,
-    address: application.address || null,
-  }
-  const existing = await loadPatientIdCardApplication(client, application.patientId)
-  if (existing?.status === 'rejected') {
-    const result = await client.from('patient_id_card_applications').update({
-      ...payload, status: 'pending', reviewed_by: null, reviewed_at: null, rejection_reason: null,
-    }).eq('id', existing.id).select('id,status').single()
-    return unwrap(result)
-  }
-  if (existing) throw new Error('A card application already exists. Check its current status.')
-  const result = await client.from('patient_id_card_applications').insert(payload).select('id,status').single()
-  return unwrap(result)
+  const result = await client.rpc('submit_patient_id_card_application', {
+    p_patient_id: application.patientId,
+    p_blood_group: application.bloodGroup || null,
+    p_date_of_birth: application.dateOfBirth || null,
+    p_emergency_contact_name: application.emergencyContactName || null,
+    p_emergency_contact_phone: application.emergencyContactPhone || null,
+    p_address: application.address || null,
+  })
+  return unwrap(result)?.[0]
 }
 
 export async function loadPendingPatientIdCards(client) {
