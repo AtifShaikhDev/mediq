@@ -328,6 +328,10 @@ function subscribeWorkspaceRealtime() {
       window.clearTimeout(refreshTimer)
       refreshTimer = window.setTimeout(() => loadSignedInWorkspace(state.user, true), 150)
     })
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'patient_visit_requests' }, () => {
+      window.clearTimeout(refreshTimer)
+      refreshTimer = window.setTimeout(() => loadSignedInWorkspace(state.user, true), 150)
+    })
     .on('postgres_changes', { event: '*', schema: 'public', table: 'hospital_settings' }, () => {
       window.clearTimeout(refreshTimer)
       refreshTimer = window.setTimeout(() => loadSignedInWorkspace(state.user, true), 150)
