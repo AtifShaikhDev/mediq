@@ -24,6 +24,7 @@ import {
   submitPatientIdCardApplication,
   loadPendingPatientIdCards,
   reviewPatientIdCard,
+  verifyPatientIdCard,
 } from './lib/api.js'
 import { isSupabaseConfigured, supabase, supabaseConfigError } from './lib/supabase.js'
 import { renderPublicRegistration } from './public-registration.js'
@@ -107,6 +108,7 @@ const appPath = window.location.pathname.slice(appBase.length - 1).replace(/\/$/
 const isPublicDisplay = appPath === '/display'
 const isPublicRegistration = appPath === '/register'
 const isPublicPatient = appPath === '/patient'
+const isPublicCardVerification = appPath === '/verify-card'
 const isDoctorPortal = window.location.pathname.replace(/\/+$/, '').endsWith('/doctor') || appPath === '/doctor' || new URLSearchParams(window.location.search).get('portal') === 'doctor'
 const isPublicRegistrationEnabled = import.meta.env.VITE_PUBLIC_REGISTRATION_ENABLED === 'true'
 let workspaceChannel = null
@@ -419,7 +421,7 @@ async function renderPatientDashboard() {
         const { data: link } = await supabase.from('patient_accounts').select('patient_id').eq('user_id', sessionData.session.user.id).maybeSingle()
         if (link?.patient_id) {
           const application = await loadPatientIdCardApplication(supabase, link.patient_id)
-          if (application?.status === 'approved') drawQrCode(cardQr, application.card_qr_id)
+          if (application?.status === 'approved') drawQrCode(cardQr, `${window.location.origin}${appBase}verify-card?qr=${encodeURIComponent(application.card_qr_id)}`)
         }
       }
     } catch (error) {
@@ -677,6 +679,17 @@ function settingsPage() {
     <section class="settings-card"><div class="settings-card-heading"><span class="summary-icon teal">${icon('settings')}</span><div><h2>Application status</h2><p>Live project connection details.</p></div></div><div class="data-info"><div><span>Database</span><strong>Supabase Postgres</strong></div><div><span>Authentication</span><strong>Email and password</strong></div><div><span>Realtime</span><strong>${escapeHtml(state.realtimeStatus)}</strong></div></div></section>
     <section class="settings-card settings-data-card"><div class="settings-card-heading"><span class="summary-icon amber">${icon('users')}</span><div><h2>Your access</h2><p>Permissions are enforced by PostgreSQL RLS and database functions.</p></div></div><div class="data-info"><div><span>Signed in as</span><strong>${escapeHtml(state.profile.email)}</strong></div><div><span>Assigned role</span><strong>${escapeHtml(state.profile.role)}</strong></div><div><span>Session</span><strong>Supabase Auth</strong></div></div></section>
     <div class="settings-disclaimer">${icon('heart')} <p>Patient data is stored in your configured Supabase project. Use production privacy and retention policies appropriate for your organization before entering real patient data.</p></div></div>`
+}
+
+async function renderPatientCardVerification() {
+  document.body.classList.add('public-registration-page')
+  const cardQrId = new URLSearchParams(window.location.search).get('qr') || ''
+  app.innerHTML = '<main class="public-route"><section class="auth-card"><h1>Checking patient ID card…</h1><p>Please wait.</p></section></main>'
+  let valid = false
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(cardQrId)) {
+    try { valid = await verifyPatientIdCard(supabase, cardQrId) } catch { valid = false }
+  }
+  app.innerHTML = `<main class="public-route"><section class="auth-card patient-card-verification"><div class="display-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>MediQ</strong><small>PATIENT CARD VERIFICATION</small></div></div><h1>${valid ? 'Valid patient ID card' : 'Card not verified'}</h1><p>${valid ? 'This card identifier matches an active approved MediQ patient ID card.' : 'This QR code is invalid, unknown, or the card is not currently approved. Please contact hospital reception.'}</p><p class="form-guidance">For privacy, this page does not reveal patient identity or medical information.</p><a class="button button-secondary" href="${appBase}patient">Open Patient Portal</a></section></main>`
 }
 
 function drawQrCode(container, value) {
@@ -1307,6 +1320,8 @@ if (isPublicRegistration) {
   window.location.replace(`${appBase}patient`)
 } else if (!isSupabaseConfigured) {
   renderConfigurationError()
+} else if (isPublicCardVerification) {
+  renderPatientCardVerification()
 } else if (isPublicPatient) {
   renderPatientDashboard()
 } else if (isPublicDisplay) {
