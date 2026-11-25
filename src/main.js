@@ -1171,9 +1171,19 @@ app.addEventListener('submit', async (event) => {
     submit.disabled = true
     try {
       if (form.id === 'patient-account-signup') {
-        const { error } = await supabase.auth.signUp({ email, password, options: { data: { full_name: String(data.get('fullName')).trim(), account_type: 'patient' } } })
+        const { data: signupData, error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: { full_name: String(data.get('fullName')).trim(), account_type: 'patient' },
+            emailRedirectTo: `${window.location.origin}${appBase}patient`,
+          },
+        })
         if (error) throw error
         await renderPatientDashboard()
+        if (!signupData.session) {
+          showToast('Account created. Please open the confirmation email sent to ' + email + ' and confirm it before signing in. Check Spam if needed.')
+        }
       } else {
         const { error } = await supabase.auth.signInWithPassword({ email, password })
         if (error) throw error
@@ -1184,8 +1194,9 @@ app.addEventListener('submit', async (event) => {
       const note = document.createElement('p')
       note.className = 'form-guidance'
       note.setAttribute('role', 'alert')
-      note.textContent = error.message
-      form.prepend(note)
+      note.textContent = /email not confirmed/i.test(error.message || '')
+        ? 'Your email address is registered but not verified yet. Open the confirmation email in your inbox (or Spam), then return here and sign in. You can also use “Resend confirmation email”.'
+        : error.message
     }
   }
   if (event.target.id === 'patient-id-card-application-form') {
