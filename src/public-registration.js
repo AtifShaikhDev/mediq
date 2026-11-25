@@ -42,6 +42,7 @@ export function renderPublicRegistration(app, icon, client, registrationEnabled)
             <label class="form-field registration-full"><span>Mobile number <b>*</b></span><input name="mobile" type="tel" inputmode="tel" autocomplete="tel" maxlength="16" required aria-describedby="registration-mobile-help" placeholder="+91 98765 43210"><small id="registration-mobile-help">Use a 10-digit Indian mobile number, with or without +91.</small></label>
             <label class="form-field registration-full"><span>Department <b>*</b></span><select name="department" required><option value="">Choose a department</option>${departments.map((department) => `<option value="${department}">${department}</option>`).join('')}</select></label>
             <label class="form-field registration-full"><span>Select doctor <b>*</b></span><select name="doctorUserId" required disabled><option value="">Choose a department first</option></select></label>
+            <label class="form-field registration-full"><span>Additional documents (optional)</span><input name="documents" type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,application/pdf,image/jpeg,image/png,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document" aria-describedby="registration-documents-help"><small id="registration-documents-help">Attach up to 5 files: PDF, JPG, PNG, DOC or DOCX. Maximum 15 MB each.</small></label>
           </div>
           <div class="registration-privacy" role="note"><strong>Privacy notice</strong><span>${registrationReady ? 'Your details are used to create your patient record and queue entry. Personal details are not shown on the public queue display. Do not enter medical details here.' : 'Online registration is not active yet. Your details will not be sent or saved. Do not enter medical details here.'}</span></div>
           <button class="button button-primary public-registration-submit" type="submit" ${registrationReady ? '' : 'disabled'}>${registrationReady ? `${icon('check')} Submit Registration` : 'Registration Currently Unavailable'}</button>
@@ -136,6 +137,14 @@ export function renderPublicRegistration(app, icon, client, registrationEnabled)
       return
     }
 
+    const documents = Array.from(form.elements.documents.files || [])
+    const allowedDocumentTypes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
+    if (documents.length > 5 || documents.some((file) => !allowedDocumentTypes.has(file.type) || file.size <= 0 || file.size > 15 * 1024 * 1024)) {
+      status.textContent = 'Attach up to 5 PDF, JPG, PNG, DOC or DOCX files, each no larger than 15 MB.'
+      status.hidden = false
+      status.focus()
+      return
+    }
     const patient = {
       fullName: nameInput.value.trim(),
       age: Number(form.elements.age.value),
@@ -166,7 +175,7 @@ export function renderPublicRegistration(app, icon, client, registrationEnabled)
     submit.disabled = true
     submit.textContent = 'Submitting registration…'
     Promise.resolve()
-      .then(() => registerPublicPatient(client, patient, idempotencyKey))
+      .then(() => registerPublicPatient(client, patient, idempotencyKey, documents))
       .then((result) => {
         if (!result || typeof result.patientId !== 'string' || !result.patientId.trim()
           || typeof result.token !== 'string' || !result.token.trim()
