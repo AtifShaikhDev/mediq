@@ -664,7 +664,7 @@ function renderModal() {
   let content = ''
   if (state.modal.type === 'register') {
     content = `<div class="modal-heading"><div><p class="eyebrow">NEW CHECK-IN</p><h2>Register a patient</h2><p>Enter patient details to create a queue token.</p></div><button class="icon-button" data-action="close-modal" aria-label="Close dialog">${icon('close')}</button></div>
-    <form id="register-form" class="modal-form"><div class="form-grid"><label class="form-field form-full"><span>Full name <b>*</b></span><input name="name" required maxlength="120" placeholder="Patient full name"></label><label class="form-field"><span>Age <b>*</b></span><input name="age" type="number" min="0" max="120" required placeholder="Age"></label><label class="form-field"><span>Gender <b>*</b></span><select name="gender" required><option value="">Select gender</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></label><label class="form-field form-full"><span>Mobile number <b>*</b></span><input name="mobile" type="tel" inputmode="tel" required placeholder="+91 98765 43210"></label><label class="form-field form-full"><span>Department <b>*</b></span><select name="departmentId" required><option value="">Choose a department</option>${state.departmentRows.map((department) => `<option value="${department.id}">${escapeHtml(department.name)}</option>`).join('')}</select></label><label class="form-field form-full"><span>Select doctor <b>*</b></span><select name="doctorUserId" required disabled><option value="">Choose a department first</option></select></label></div><div class="form-guidance">${icon('heart')} Daily token assignment is handled securely by MediQ.</div><div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Cancel</button><button type="submit" class="button button-primary">${icon('plus')} Register patient</button></div></form>`
+    <form id="register-form" class="modal-form"><div class="form-grid"><label class="form-field form-full"><span>Full name <b>*</b></span><input name="name" required maxlength="120" placeholder="Patient full name"></label><label class="form-field"><span>Age <b>*</b></span><input name="age" type="number" min="0" max="120" required placeholder="Age"></label><label class="form-field"><span>Gender <b>*</b></span><select name="gender" required><option value="">Select gender</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></label><label class="form-field form-full"><span>Mobile number <b>*</b></span><input name="mobile" type="tel" inputmode="tel" required placeholder="+91 98765 43210"></label><label class="form-field form-full"><span>Department <b>*</b></span><select name="departmentId" required><option value="">Choose a department</option>${state.departmentRows.map((department) => `<option value="${department.id}">${escapeHtml(department.name)}</option>`).join('')}</select></label><label class="form-field form-full"><span>Select doctor <b>*</b></span><select name="doctorUserId" required disabled><option value="">Choose a department first</option></select></label><label class="form-field form-full"><span>Additional documents (optional)</span><input name="additionalDocuments" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" multiple><small>Attach up to 5 files. PDF, JPG, PNG, DOC or DOCX; maximum 15 MB per file.</small></label></div><div class="form-guidance">${icon('heart')} Daily token assignment is handled securely by MediQ. Uploaded documents are stored in the patient’s private medical record.</div><div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Cancel</button><button type="submit" class="button button-primary">${icon('plus')} Register patient</button></div></form>`
   } else if (state.modal.type === 'profile') {
     const patient = state.patients.find((item) => item.id === state.modal.id)
     if (patient) {
@@ -788,12 +788,19 @@ async function registerPatient(form) {
     showToast('Please check the patient details and try again.', 'error')
     return
   }
+  const documentFiles = Array.from(form.elements.additionalDocuments?.files || [])
+  const allowedDocumentTypes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
+  if (documentFiles.length > 5 || documentFiles.some((file) => !allowedDocumentTypes.has(file.type) || file.size <= 0 || file.size > 15 * 1024 * 1024)) {
+    showToast('Attach up to 5 valid PDF, JPG, PNG, DOC or DOCX files (maximum 15 MB each).', 'error')
+    return
+  }
   const submit = form.querySelector('button[type="submit"]')
   submit.disabled = true
   submit.textContent = 'Saving registration…'
   try {
     const result = await createPatientRecord(supabase, patient)
-    if (!result || typeof result.patient_code !== 'string' || !result.patient_code.trim()
+    if (!result || typeof result.patient_id !== 'string' || !result.patient_id.trim()
+      || typeof result.patient_code !== 'string' || !result.patient_code.trim()
       || typeof result.token !== 'string' || !result.token.trim()) {
       state.modal = null
       renderShell()
@@ -804,8 +811,19 @@ async function registerPatient(form) {
     state.modal = state.profile.role === 'Admin' ? { type: 'token-qr', patientId: result.patient_code, token: result.token, department: patient.departmentId ? state.departmentRows.find((row) => row.id === patient.departmentId)?.name || 'Department' : 'Department' } : null
     renderShell()
     renderModal()
-    const successMessage = `Patient registered. Patient ID ${result.patient_code}; queue token ${result.token}.`
-    showToast(successMessage)
+    let documentMessage = ''
+    if (documentFiles.length) {
+      const uploadResults = await Promise.allSettled(documentFiles.map((file) =>
+        uploadPatientDocument(supabase, { patientId: result.patient_id, visitId: result.visit_id || null, file, visibility: 'patient_visible' })
+      ))
+      const uploadedCount = uploadResults.filter((item) => item.status === 'fulfilled').length
+      const failedCount = uploadResults.length - uploadedCount
+      documentMessage = failedCount
+        ? ` ${uploadedCount} document(s) uploaded; ${failedCount} could not be uploaded. You can add them later from the patient medical record.`
+        : ` ${uploadedCount} additional document(s) attached.`
+    }
+    const successMessage = `Patient registered. Patient ID ${result.patient_code}; queue token ${result.token}.${documentMessage}`
+    showToast(successMessage, documentMessage.includes('could not') ? 'error' : 'success')
     try {
       await refreshWorkspace()
     } catch (error) {
