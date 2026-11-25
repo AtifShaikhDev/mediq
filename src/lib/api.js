@@ -113,9 +113,12 @@ export async function loadPublicDoctors(client) {
   return unwrap(result) || []
 }
 
-export async function registerPublicPatient(client, patient, idempotencyKey) {
+export async function registerPublicPatient(client, patient, idempotencyKey, documents = []) {
+  const body = new FormData()
+  body.set('registration', JSON.stringify(patient))
+  documents.forEach((file) => body.append('documents', file, file.name))
   const result = await client.functions.invoke('public-register', {
-    body: patient,
+    body,
     headers: { 'Idempotency-Key': idempotencyKey },
   })
   if (!result.error) return result.data
