@@ -6,13 +6,18 @@ import {
 
 const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
 const hashPattern = /^[0-9a-f]{64}$/
-const maxBodyBytes = 4096
+const maxBodyBytes = 80 * 1024 * 1024
+const maxFiles = 5
+const maxFileBytes = 15 * 1024 * 1024
+const allowedMimeTypes = new Set(['application/pdf', 'image/jpeg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
 
 type RpcError = { code?: string | null }
 type RpcResult = { data: unknown; error: RpcError | null }
 
 export type PublicRegistrationClient = {
   rpc: (name: string, parameters: Record<string, unknown>) => PromiseLike<RpcResult>
+  findRegistrationVisit: (idempotencyKey: string) => Promise<{ patientId: string; visitId: string } | null>
+  uploadPatientFile: (patientId: string, visitId: string, file: File, idempotencyKey: string, fileIndex: number, fileHash: string) => Promise<void>
 }
 
 export type PublicRegistrationDependencies = {
@@ -65,6 +70,34 @@ function jsonResponse(
 
 function getClientIp(request: Request) {
   return request.headers.get('cf-connecting-ip')?.trim() || ''
+}
+
+function hasValidFileSignature(file: File, bytes: ArrayBuffer) {
+  const header = new Uint8Array(bytes.slice(0, 8))
+  const startsWith = (...values: number[]) => values.every((value, index) => header[index] === value)
+  const extension = file.name.toLowerCase().split('.').pop() || ''
+  const extensionMatchesType: Record<string, string[]> = {
+    'application/pdf': ['pdf'],
+    'image/jpeg': ['jpg', 'jpeg'],
+    'image/png': ['png'],
+    'application/msword': ['doc'],
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['docx'],
+  }
+  if (!extensionMatchesType[file.type]?.includes(extension)) return false
+  switch (file.type) {
+    case 'application/pdf':
+      return new TextDecoder().decode(header.slice(0, 5)) === '%PDF-'
+    case 'image/jpeg':
+      return startsWith(0xff, 0xd8, 0xff)
+    case 'image/png':
+      return startsWith(0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)
+    case 'application/msword':
+      return startsWith(0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1)
+    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+      return startsWith(0x50, 0x4b, 0x03, 0x04)
+    default:
+      return false
+  }
 }
 
 async function hmacHex(secret: string, value: string) {
@@ -184,52 +217,34 @@ async function handleRequest(
   if (request.method !== 'POST') {
     return jsonResponse(origin, { error: 'Method not allowed.' }, 405, { Allow: 'POST, OPTIONS' })
   }
-  if (!request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) {
-    return jsonResponse(origin, { error: 'Expected a JSON request.' }, 415)
+  const requestContentType = request.headers.get('content-type')?.toLowerCase() || ''
+  if (!requestContentType.startsWith('application/json') && !requestContentType.startsWith('multipart/form-data')) {
+    return jsonResponse(origin, { error: 'Expected registration details and optional documents.' }, 415)
   }
   const contentLength = Number(request.headers.get('content-length') || 0)
-  if (contentLength > maxBodyBytes) {
-    return jsonResponse(origin, { error: 'Registration request is too large.' }, 413)
-  }
-
-  let rawBody = ''
-  const reader = request.body?.getReader()
-  if (reader) {
-    const bodyBytes = new Uint8Array(maxBodyBytes)
-    let totalBytes = 0
-    try {
-      while (true) {
-        const { done, value } = await reader.read()
-        if (done) break
-        if (value.byteLength > maxBodyBytes - totalBytes) {
-          void reader.cancel().catch(() => {})
-          return jsonResponse(origin, { error: 'Registration request is too large.' }, 413)
-        }
-        bodyBytes.set(value, totalBytes)
-        totalBytes += value.byteLength
-      }
-    } catch {
-      return jsonResponse(origin, { error: 'Registration request could not be read.' }, 400)
-    } finally {
-      reader.releaseLock()
-    }
-    rawBody = new TextDecoder().decode(bodyBytes.subarray(0, totalBytes))
-  }
-
-  let body: unknown
+  if (contentLength > maxBodyBytes) return jsonResponse(origin, { error: 'Registration request is too large.' }, 413)
+  let registrationInput: unknown
+  let files: File[] = []
   try {
-    body = JSON.parse(rawBody)
-  } catch {
-    return jsonResponse(origin, { error: 'Registration request must contain valid JSON.' }, 400)
+    if (request.headers.get('content-type')?.toLowerCase().startsWith('multipart/form-data')) {
+      const form = await request.formData()
+      const rawRegistration = form.get('registration')
+      if (typeof rawRegistration !== 'string') throw new Error('Missing registration details.')
+      registrationInput = JSON.parse(rawRegistration)
+      files = form.getAll('documents').filter((item): item is File => item instanceof File)
+      if (form.getAll('documents').some((item) => !(item instanceof File))) throw new Error('Invalid document upload.')
+    } else if (request.headers.get('content-type')?.toLowerCase().startsWith('application/json')) registrationInput = await request.json()
+    else return jsonResponse(origin, { error: 'Expected registration details and optional documents.' }, 415)
+  } catch { return jsonResponse(origin, { error: 'Registration request could not be read.' }, 400) }
+  if (files.length > maxFiles) return jsonResponse(origin, { error: 'Attach no more than 5 documents.' }, 400)
+  for (const file of files) if (!allowedMimeTypes.has(file.type) || file.size <= 0 || file.size > maxFileBytes) {
+    return jsonResponse(origin, { error: 'Each document must be PDF, JPG, PNG, DOC, or DOCX and no larger than 15 MB.' }, 400)
   }
-
   let registration: NormalizedRegistration
   try {
-    registration = normalizeRegistration(body)
+    registration = normalizeRegistration(registrationInput)
   } catch (error) {
-    if (error instanceof RegistrationValidationError) {
-      return jsonResponse(origin, { error: error.message }, 400)
-    }
+    if (error instanceof RegistrationValidationError) return jsonResponse(origin, { error: error.message }, 400)
     throw error
   }
 
@@ -238,9 +253,20 @@ async function handleRequest(
     return jsonResponse(origin, { error: 'A valid submission key is required. Please try again.' }, 400)
   }
 
-  const canonicalPayload = JSON.stringify(registration)
   let requestHash: string
+  let fileHashes: string[] = []
   try {
+    for (const file of files) {
+      const fileBytes = await file.arrayBuffer()
+      if (!hasValidFileSignature(file, fileBytes)) {
+        return jsonResponse(origin, { error: 'One of the selected files does not match its file type. Please choose a valid PDF, JPG, PNG, DOC, or DOCX file.' }, 400)
+      }
+      const digest = await crypto.subtle.digest('SHA-256', fileBytes)
+      fileHashes.push(Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join(''))
+    }
+    const canonicalPayload = files.length
+      ? JSON.stringify({ registration, documents: files.map((file, index) => ({ name: file.name, size: file.size, type: file.type, sha256: fileHashes[index] })) })
+      : JSON.stringify(registration)
     requestHash = await hmacHex(fingerprintSecret, `payload:${canonicalPayload}`)
   } catch {
     dependencies.logError('Public registration fingerprinting failed.')
@@ -280,7 +306,21 @@ async function handleRequest(
     return jsonResponse(origin, { error: 'Registration is temporarily unavailable. Please try again later.' }, 503)
   }
 
-  return jsonResponse(origin, { patientId: result.patient_code, token: result.token, dashboardToken }, 201)
+  if (files.length) {
+    const record = await adminClient.findRegistrationVisit(idempotencyKey)
+    if (!record) {
+      dependencies.logError('Public registration created but patient record lookup failed.')
+      return jsonResponse(origin, { error: 'Your registration was created, but documents could not be attached. Please retry once; if it still fails, contact reception with your Patient ID.', patientId: result.patient_code, token: result.token, dashboardToken }, 503)
+    }
+    for (const [fileIndex, file] of files.entries()) {
+      try { await adminClient.uploadPatientFile(record.patientId, record.visitId, file, idempotencyKey, fileIndex, fileHashes[fileIndex]) }
+      catch (error) {
+        dependencies.logError('Public registration document upload failed.', { errorName: error instanceof Error ? error.name : 'UnknownError' })
+        return jsonResponse(origin, { error: 'Your registration was created, but a document could not be attached. Please retry once; if it still fails, contact reception with your Patient ID.', patientId: result.patient_code, token: result.token, dashboardToken }, 503)
+      }
+    }
+  }
+  return jsonResponse(origin, { patientId: result.patient_code, token: result.token, dashboardToken, documentsAttached: files.length }, 201)
 }
 
 export function createPublicRegistrationHandler(dependencies: PublicRegistrationDependencies) {

@@ -43,7 +43,7 @@ export async function loadWorkspace(client, user) {
   const departmentRows = unwrap(departmentsResult)
   const settings = unwrap(settingsResult)
 
-  const [patientsResult, queueResult, staffResult] = await Promise.all([
+  const [patientsResult, queueResult, staffResult, visitRequestsResult] = await Promise.all([
     client.from('patients')
       .select('id,patient_code,full_name,age,gender,mobile,created_at')
       .order('created_at', { ascending: false })
@@ -55,10 +55,14 @@ export async function loadWorkspace(client, user) {
     client.from('staff_profiles')
       .select('user_id,email,full_name,role,active,department_id,department:departments(name)')
       .order('full_name'),
+    ['Admin', 'Receptionist'].includes(profile.role)
+      ? client.from('patient_visit_requests').select('id,status,created_at,patient:patients(full_name,patient_code,mobile),department:departments(name),doctor:staff_profiles(full_name)').eq('status', 'pending').order('created_at', { ascending: true }).limit(100)
+      : Promise.resolve({ data: [], error: null }),
   ])
   const patientRows = unwrap(patientsResult)
   const queueRows = unwrap(queueResult)
   const staffRows = unwrap(staffResult)
+  const visitRequests = unwrap(visitRequestsResult) || []
   const queues = queueRows.map(mapQueue)
   const latestVisitByPatient = new Map()
   queues.forEach((queue) => {
@@ -93,6 +97,7 @@ export async function loadWorkspace(client, user) {
     patients,
     queues,
     staff,
+    visitRequests,
   }
 }
 
@@ -113,9 +118,12 @@ export async function loadPublicDoctors(client) {
   return unwrap(result) || []
 }
 
-export async function registerPublicPatient(client, patient, idempotencyKey) {
+export async function registerPublicPatient(client, patient, idempotencyKey, documents = []) {
+  const body = new FormData()
+  body.set('registration', JSON.stringify(patient))
+  documents.forEach((file) => body.append('documents', file, file.name))
   const result = await client.functions.invoke('public-register', {
-    body: patient,
+    body,
     headers: { 'Idempotency-Key': idempotencyKey },
   })
   if (!result.error) return result.data
@@ -216,9 +224,53 @@ export async function inviteStaffMember(client, staff) {
   throw result.error
 }
 
+export async function invitePatientAccount(client, { patientId, email }) {
+  const { data: sessionData, error: sessionError } = await client.auth.getSession()
+  if (sessionError) throw sessionError
+  const accessToken = sessionData.session?.access_token
+  if (!accessToken) throw new Error('Your session has expired. Please sign in again.')
+
+  const result = await client.functions.invoke('invite-patient', {
+    body: { patientId, email },
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+  if (!result.error) return result.data
+  const context = result.error.context
+  if (context instanceof Response) {
+    try {
+      const body = await context.clone().json()
+      if (typeof body?.error === 'string') throw new Error(body.error)
+    } catch (error) {
+      if (error instanceof Error && error.message !== result.error.message) throw error
+    }
+  }
+  throw result.error
+}
 export async function updateHospitalName(client, hospitalName) {
   const result = await client.from('hospital_settings')
     .update({ hospital_name: hospitalName })
+    .eq('id', true)
+    .select('hospital_name')
+    .single()
+  return unwrap(result)
+}
+
+export async function loadPublicHospitalProfile(client) {
+  const result = await client.rpc('get_public_hospital_profile')
+  return unwrap(result)?.[0] || { hospital_name: 'MediQ Hospital' }
+}
+
+export async function updateHospitalProfile(client, profile) {
+  const result = await client.from('hospital_settings')
+    .update({
+      hospital_name: profile.hospital_name,
+      hospital_address: profile.hospital_address,
+      hospital_phone: profile.hospital_phone,
+      hospital_email: profile.hospital_email,
+      hospital_website: profile.hospital_website,
+      hospital_description: profile.hospital_description,
+      hospital_logo_url: profile.hospital_logo_url,
+    })
     .eq('id', true)
     .select('hospital_name')
     .single()
@@ -235,4 +287,151 @@ export async function loadPublicQueue(client) {
 export async function loadPublicPatientTracking(client, accessToken) {
   const result = await client.rpc('get_public_patient_tracking', { p_access_token: accessToken })
   return unwrap(result)?.[0] || (() => { throw new Error('Patient tracking is unavailable.') })()
+}
+
+
+export async function loadPatientMedicalRecord(client, patientId) {
+  const [patientResult, visitsResult, notesResult, reportsResult, documentsResult] = await Promise.all([
+    client.from('patients').select('id,patient_code,full_name,age,gender,mobile,created_at').eq('id', patientId).single(),
+    client.from('visits').select('id,patient_id,department_id,status,arrived_at,started_at,completed_at,doctor_user_id,department:departments(name)').eq('patient_id', patientId).order('arrived_at', { ascending: false }),
+    client.from('patient_medical_notes').select('id,visit_id,author_user_id,category,title,content,visibility,created_at,updated_at').eq('patient_id', patientId).order('created_at', { ascending: false }),
+    client.from('doctor_reports').select('id,visit_id,author_user_id,report_title,examination,diagnosis,treatment_plan,follow_up_instructions,follow_up_date,status,finalized_at,created_at,updated_at').eq('patient_id', patientId).order('created_at', { ascending: false }),
+    client.from('patient_documents').select('id,visit_id,uploaded_by,file_name,mime_type,file_size_bytes,storage_path,visibility,created_at').eq('patient_id', patientId).order('created_at', { ascending: false }),
+  ])
+  return {
+    patient: unwrap(patientResult),
+    visits: unwrap(visitsResult) || [],
+    notes: unwrap(notesResult) || [],
+    reports: unwrap(reportsResult) || [],
+    documents: unwrap(documentsResult) || [],
+  }
+}
+
+export async function createDoctorReport(client, report) {
+  const { data: sessionData, error: sessionError } = await client.auth.getSession()
+  if (sessionError) throw sessionError
+  const authorUserId = sessionData.session?.user?.id
+  if (!authorUserId) throw new Error('Please sign in again before saving a report.')
+  const result = await client.from('doctor_reports').insert({
+    patient_id: report.patientId,
+    visit_id: report.visitId,
+    author_user_id: authorUserId,
+    report_title: report.title || 'Consultation report',
+    examination: report.examination || '',
+    diagnosis: report.diagnosis || '',
+    treatment_plan: report.treatmentPlan || '',
+    follow_up_instructions: report.followUpInstructions || '',
+    follow_up_date: report.followUpDate || null,
+    status: 'draft',
+  }).select('id').single()
+  return unwrap(result)
+}
+
+export async function finalizeDoctorReport(client, reportId) {
+  const result = await client.from('doctor_reports')
+    .update({ status: 'finalized', finalized_at: new Date().toISOString() })
+    .eq('id', reportId)
+    .eq('status', 'draft')
+    .select('id,status,finalized_at')
+    .single()
+  return unwrap(result)
+}
+
+export async function uploadPatientDocument(client, { patientId, visitId = null, file, visibility = 'patient_visible' }) {
+  if (!(file instanceof File)) throw new Error('Choose a file to upload.')
+  const allowedTypes = new Set([
+    'application/pdf',
+    'image/jpeg',
+    'image/png',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  ])
+  if (!allowedTypes.has(file.type)) throw new Error('Upload a PDF, JPG, PNG, DOC, or DOCX file.')
+  if (file.size <= 0 || file.size > 15 * 1024 * 1024) throw new Error('File size must be 15 MB or less.')
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-180) || 'medical-document'
+  const storagePath = `${patientId}/${crypto.randomUUID()}-${safeName}`
+  const storage = client.storage.from('patient-medical-records')
+  const uploadResult = await storage.upload(storagePath, file, { contentType: file.type, upsert: false })
+  if (uploadResult.error) throw uploadResult.error
+  try {
+    const { data: sessionData, error: sessionError } = await client.auth.getSession()
+    if (sessionError) throw sessionError
+    const uploadedBy = sessionData.session?.user?.id
+    if (!uploadedBy) throw new Error('Please sign in again before uploading.')
+    const result = await client.from('patient_documents').insert({
+      patient_id: patientId,
+      visit_id: visitId,
+      uploaded_by: uploadedBy,
+      file_name: file.name,
+      mime_type: file.type,
+      file_size_bytes: file.size,
+      storage_path: storagePath,
+      visibility,
+    }).select('id').single()
+    return unwrap(result)
+  } catch (error) {
+    await storage.remove([storagePath])
+    throw error
+  }
+}
+
+export async function getPatientDocumentDownloadUrl(client, storagePath) {
+  const result = await client.storage.from('patient-medical-records').createSignedUrl(storagePath, 60)
+  return unwrap(result).signedUrl
+}
+
+
+export async function createPatientVisitRequest(client, { departmentId, doctorUserId }) {
+  const result = await client.rpc('create_patient_visit_request', {
+    p_department_id: departmentId,
+    p_doctor_user_id: doctorUserId,
+  })
+  return unwrap(result)?.[0]
+}
+
+export async function reviewPatientVisitRequest(client, { requestId, decision }) {
+  const result = await client.rpc('review_patient_visit_request', {
+    p_request_id: requestId,
+    p_decision: decision,
+  })
+  return unwrap(result)?.[0]
+}
+
+
+export async function loadPatientIdCardApplication(client, patientId) {
+  const result = await client.from('patient_id_card_applications')
+    .select('id,patient_id,blood_group,date_of_birth,emergency_contact_name,emergency_contact_phone,address,status,card_qr_id,submitted_at,reviewed_at,rejection_reason')
+    .eq('patient_id', patientId).maybeSingle()
+  return unwrap(result)
+}
+
+export async function submitPatientIdCardApplication(client, application) {
+  const result = await client.rpc('submit_patient_id_card_application', {
+    p_blood_group: application.bloodGroup || null,
+    p_date_of_birth: application.dateOfBirth || null,
+    p_emergency_contact_name: application.emergencyContactName || null,
+    p_emergency_contact_phone: application.emergencyContactPhone || null,
+    p_address: application.address || null,
+  })
+  return unwrap(result)?.[0]
+}
+
+export async function loadPendingPatientIdCards(client) {
+  const result = await client.from('patient_id_card_applications')
+    .select('id,patient_id,blood_group,date_of_birth,emergency_contact_name,emergency_contact_phone,address,status,card_qr_id,submitted_at,patient:patients(id,patient_code,full_name,mobile)')
+    .eq('status','pending').order('submitted_at',{ascending:true}).limit(200)
+  return unwrap(result) || []
+}
+
+export async function reviewPatientIdCard(client, applicationId, decision, reason = null) {
+  const result = await client.rpc('review_patient_id_card_application', {
+    p_application_id: applicationId, p_decision: decision, p_rejection_reason: reason,
+  })
+  return unwrap(result)?.[0]
+}
+
+
+export async function verifyPatientIdCard(client, cardQrId) {
+  const result = await client.rpc('verify_patient_id_card', { p_card_qr_id: cardQrId })
+  return Boolean(unwrap(result)?.[0]?.valid)
 }

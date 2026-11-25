@@ -12,6 +12,36 @@ const registrationHandler = createPublicRegistrationHandler({
         const { data, error } = await client.rpc(name, parameters)
         return { data, error: error ? { code: error.code } : null }
       },
+      findRegistrationVisit: async (idempotencyKey) => {
+        const { data, error } = await client.rpc('get_public_registration_visit', { p_idempotency_key: idempotencyKey })
+        if (error || !Array.isArray(data) || !data[0]) return null
+        return { patientId: data[0].patient_id, visitId: data[0].visit_id }
+      },
+      uploadPatientFile: async (patientId, visitId, file, idempotencyKey, fileIndex, fileHash) => {
+        const { data: existing, error: existingError } = await client.from('patient_documents')
+          .select('id,file_sha256')
+          .eq('registration_idempotency_key', idempotencyKey)
+          .eq('registration_file_index', fileIndex)
+          .maybeSingle()
+        if (existingError) throw existingError
+        if (existing) {
+          if (existing.file_sha256 !== fileHash) throw new Error('Registration document retry did not match the original file.')
+          return
+        }
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-180) || 'medical-document'
+        const storagePath = `${patientId}/${crypto.randomUUID()}-${safeName}`
+        const storage = client.storage.from('patient-medical-records')
+        const { error: uploadError } = await storage.upload(storagePath, file, { contentType: file.type, upsert: false })
+        if (uploadError) throw uploadError
+        const { error: metadataError } = await client.from('patient_documents').insert({
+          patient_id: patientId, visit_id: visitId, uploaded_by: null, registration_idempotency_key: idempotencyKey, registration_file_index: fileIndex, file_sha256: fileHash, file_name: file.name,
+          mime_type: file.type, file_size_bytes: file.size, storage_path: storagePath, visibility: 'patient_visible',
+        })
+        if (metadataError) {
+          await storage.remove([storagePath])
+          throw metadataError
+        }
+      },
     }
   },
   logError: (message, details) => console.error(message, details),
