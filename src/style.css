@@ -924,3 +924,136 @@ body.public-registration-page { min-width: 0; }
   .patient-id-card-application > form,
   .patient-id-card-application > button { display: none !important; }
 }
+
+
+/* Patient portal sign-in refinement */
+.patient-auth-page {
+  padding: clamp(20px, 5vw, 56px) 18px;
+  background:
+    radial-gradient(ellipse at 18% 12%, rgba(42, 174, 181, .22), transparent 34%),
+    radial-gradient(ellipse at 86% 88%, rgba(41, 133, 186, .22), transparent 34%),
+    #102d43;
+}
+.patient-auth-page .patient-portal-entry {
+  width: min(100%, 620px);
+  padding: clamp(24px, 4vw, 42px);
+  border: 1px solid rgba(255,255,255,.72);
+  border-radius: 22px;
+  box-shadow: 0 28px 80px rgba(3, 20, 34, .24);
+}
+.patient-portal-brand {
+  position: relative;
+  padding-bottom: 20px;
+  margin-bottom: 28px;
+  border-bottom: 1px solid #edf2f6;
+}
+.patient-portal-brand .brand-mark {
+  width: 46px;
+  height: 46px;
+  border-radius: 15px;
+}
+.patient-secure-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 7px 10px;
+  border: 1px solid #d8eee8;
+  border-radius: 999px;
+  color: #277d6c;
+  background: #f0faf7;
+  font-size: 10px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+.patient-secure-label .icon { width: 13px; height: 13px; }
+.patient-auth-heading { margin-bottom: 24px; }
+.patient-auth-heading .eyebrow { margin-bottom: 9px; color: #278e9b; }
+.patient-auth-heading h1 { margin-bottom: 9px; font-size: clamp(27px, 4vw, 34px); letter-spacing: -.035em; }
+.patient-auth-heading p:last-child { max-width: 470px; color: #718494; font-size: 13px; line-height: 1.65; }
+.patient-login-form { gap: 17px; }
+.patient-login-form .form-field { gap: 8px; }
+.patient-login-form .form-field > span { color: #344e61; font-size: 12px; font-weight: 650; }
+.patient-login-form input {
+  min-height: 48px;
+  padding: 12px 14px;
+  border: 1px solid #dce6ed;
+  border-radius: 10px;
+  background: #fbfdff;
+  font-size: 14px;
+  transition: border-color .18s, box-shadow .18s, background .18s;
+}
+.patient-login-form input:focus {
+  border-color: #2999a7;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(41,153,167,.12);
+  outline: none;
+}
+.patient-login-form .button {
+  min-height: 49px;
+  margin-top: 4px;
+  border-radius: 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.patient-login-form .button .icon { width: 15px; height: 15px; }
+.patient-auth-links {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px 18px;
+  margin: 13px 0 25px;
+}
+.patient-auth-links .text-button {
+  padding: 4px 0;
+  color: #287e9e;
+  font-size: 11px;
+  font-weight: 650;
+}
+.patient-auth-links .text-button:hover { color: #155d79; text-decoration: underline; }
+.patient-signup-details {
+  padding: 17px 18px;
+  border: 1px solid #e4ebf0;
+  border-radius: 12px;
+  background: #f8fbfd;
+}
+.patient-signup-details summary {
+  color: #203e52;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+  list-style: none;
+}
+.patient-signup-details summary::-webkit-details-marker { display: none; }
+.patient-signup-details summary::after {
+  content: "+";
+  float: right;
+  color: #258a9b;
+  font-size: 19px;
+  line-height: 12px;
+}
+.patient-signup-details[open] summary::after { content: "−"; }
+.patient-signup-details summary span { color: #258a9b; }
+.patient-signup-details .modal-form { margin-top: 18px; }
+.patient-signup-details .form-field { gap: 7px; }
+.patient-signup-details input { min-height: 44px; border-radius: 9px; }
+.patient-signup-details .caption { margin: 12px 0 0; color: #718494; font-size: 10px; line-height: 1.5; }
+.patient-auth-footnote {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 23px 0 0 !important;
+  padding-top: 17px;
+  border-top: 1px solid #edf2f6;
+  color: #8193a0 !important;
+  font-size: 10px !important;
+}
+.patient-auth-footnote .icon { width: 14px; height: 14px; color: #2a9b88; flex: 0 0 auto; }
+.patient-auth-page .patient-hospital-info { margin-top: 22px; border-radius: 12px; }
+@media (max-width: 520px) {
+  .patient-auth-page { padding: 12px; }
+  .patient-auth-page .patient-portal-entry { padding: 22px 18px; border-radius: 17px; }
+  .patient-portal-brand { flex-wrap: wrap; gap: 10px; }
+  .patient-secure-label { margin-left: 0; }
+  .patient-auth-links { flex-direction: column; align-items: flex-start; }
+}
