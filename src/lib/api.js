@@ -374,3 +374,12 @@ export async function getPatientDocumentDownloadUrl(client, storagePath) {
   const result = await client.storage.from('patient-medical-records').createSignedUrl(storagePath, 60)
   return unwrap(result).signedUrl
 }
+
+
+export async function createPatientVisitRequest(client, { departmentId, doctorUserId }) {
+  const result = await client.rpc('create_patient_visit_request', {
+    p_department_id: departmentId,
+    p_doctor_user_id: doctorUserId,
+  })
+  return unwrap(result)?.[0]
+}
