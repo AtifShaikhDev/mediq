@@ -19,14 +19,14 @@ const registrationHandler = createPublicRegistrationHandler({
         if (visitError || !visit) return null
         return { patientId: patient.id, visitId: visit.id }
       },
-      uploadPatientFile: async (patientId, visitId, file) => {
+      uploadPatientFile: async (patientId, visitId, file, idempotencyKey) => {
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-180) || 'medical-document'
         const storagePath = `${patientId}/${crypto.randomUUID()}-${safeName}`
         const storage = client.storage.from('patient-medical-records')
         const { error: uploadError } = await storage.upload(storagePath, file, { contentType: file.type, upsert: false })
         if (uploadError) throw uploadError
         const { error: metadataError } = await client.from('patient_documents').insert({
-          patient_id: patientId, visit_id: visitId, uploaded_by: null, file_name: file.name,
+          patient_id: patientId, visit_id: visitId, uploaded_by: null, registration_idempotency_key: idempotencyKey, file_name: file.name,
           mime_type: file.type, file_size_bytes: file.size, storage_path: storagePath, visibility: 'patient_visible',
         })
         if (metadataError) {
