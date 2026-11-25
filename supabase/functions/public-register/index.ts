@@ -12,12 +12,10 @@ const registrationHandler = createPublicRegistrationHandler({
         const { data, error } = await client.rpc(name, parameters)
         return { data, error: error ? { code: error.code } : null }
       },
-      findPatientVisit: async (patientCode) => {
-        const { data: patient, error: patientError } = await client.from('patients').select('id').eq('patient_code', patientCode).single()
-        if (patientError || !patient) return null
-        const { data: visit, error: visitError } = await client.from('visits').select('id').eq('patient_id', patient.id).order('arrived_at', { ascending: false }).limit(1).single()
-        if (visitError || !visit) return null
-        return { patientId: patient.id, visitId: visit.id }
+      findRegistrationVisit: async (idempotencyKey) => {
+        const { data, error } = await client.rpc('get_public_registration_visit', { p_idempotency_key: idempotencyKey })
+        if (error || !Array.isArray(data) || !data[0]) return null
+        return { patientId: data[0].patient_id, visitId: data[0].visit_id }
       },
       uploadPatientFile: async (patientId, visitId, file, idempotencyKey, fileIndex, fileHash) => {
         const { data: existing, error: existingError } = await client.from('patient_documents')
