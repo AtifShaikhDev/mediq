@@ -20,6 +20,16 @@ const registrationHandler = createPublicRegistrationHandler({
         return { patientId: patient.id, visitId: visit.id }
       },
       uploadPatientFile: async (patientId, visitId, file, idempotencyKey, fileIndex, fileHash) => {
+        const { data: existing, error: existingError } = await client.from('patient_documents')
+          .select('id,file_sha256')
+          .eq('registration_idempotency_key', idempotencyKey)
+          .eq('registration_file_index', fileIndex)
+          .maybeSingle()
+        if (existingError) throw existingError
+        if (existing) {
+          if (existing.file_sha256 !== fileHash) throw new Error('Registration document retry did not match the original file.')
+          return
+        }
         const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_').slice(-180) || 'medical-document'
         const storagePath = `${patientId}/${crypto.randomUUID()}-${safeName}`
         const storage = client.storage.from('patient-medical-records')
