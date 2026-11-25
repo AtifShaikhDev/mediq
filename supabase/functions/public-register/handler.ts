@@ -17,7 +17,7 @@ type RpcResult = { data: unknown; error: RpcError | null }
 export type PublicRegistrationClient = {
   rpc: (name: string, parameters: Record<string, unknown>) => PromiseLike<RpcResult>
   findPatientVisit: (patientCode: string) => Promise<{ patientId: string; visitId: string } | null>
-  uploadPatientFile: (patientId: string, visitId: string, file: File, idempotencyKey: string) => Promise<void>
+  uploadPatientFile: (patientId: string, visitId: string, file: File, idempotencyKey: string, fileIndex: number, fileHash: string) => Promise<void>
 }
 
 export type PublicRegistrationDependencies = {
@@ -225,9 +225,14 @@ async function handleRequest(
     return jsonResponse(origin, { error: 'A valid submission key is required. Please try again.' }, 400)
   }
 
-  const canonicalPayload = JSON.stringify(registration)
   let requestHash: string
+  let fileHashes: string[] = []
   try {
+    fileHashes = await Promise.all(files.map(async (file) => {
+      const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+      return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('')
+    }))
+    const canonicalPayload = JSON.stringify({ registration, documents: files.map((file, index) => ({ name: file.name, size: file.size, type: file.type, sha256: fileHashes[index] })) })
     requestHash = await hmacHex(fingerprintSecret, `payload:${canonicalPayload}`)
   } catch {
     dependencies.logError('Public registration fingerprinting failed.')
@@ -273,8 +278,8 @@ async function handleRequest(
       dependencies.logError('Public registration created but patient record lookup failed.')
       return jsonResponse(origin, { error: 'Registration was created, but documents could not be attached. Contact reception with your Patient ID.' }, 201)
     }
-    for (const file of files) {
-      try { await adminClient.uploadPatientFile(record.patientId, record.visitId, file, idempotencyKey) }
+    for (const [fileIndex, file] of files.entries()) {
+      try { await adminClient.uploadPatientFile(record.patientId, record.visitId, file, idempotencyKey, fileIndex, fileHashes[fileIndex]) }
       catch (error) {
         dependencies.logError('Public registration document upload failed.', { errorName: error instanceof Error ? error.name : 'UnknownError' })
         return jsonResponse(origin, { error: 'Registration was created, but a document could not be attached. Contact reception with your Patient ID.' }, 201)
