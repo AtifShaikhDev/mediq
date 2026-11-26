@@ -290,6 +290,20 @@ export async function loadPublicPatientTracking(client, accessToken) {
 }
 
 
+export async function registerNewPatientAccount(client, patient) {
+  const result = await client.rpc('register_new_patient_account', {
+    p_full_name: patient.fullName,
+    p_age: patient.age,
+    p_gender: patient.gender,
+    p_mobile: patient.mobile,
+  })
+  const row = unwrap(result)?.[0]
+  if (!row?.patient_id || !row?.patient_code) {
+    throw new Error('Patient registration could not be confirmed. Please refresh and check your account.')
+  }
+  return row
+}
+
 export async function loadPatientMedicalRecord(client, patientId) {
   const [patientResult, visitsResult, notesResult, reportsResult, documentsResult] = await Promise.all([
     client.from('patients').select('id,patient_code,full_name,age,gender,mobile,created_at').eq('id', patientId).single(),
