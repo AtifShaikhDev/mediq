@@ -25,6 +25,7 @@ import {
   loadPendingPatientIdCards,
   reviewPatientIdCard,
   verifyPatientIdCard,
+  registerNewPatientAccount,
 } from './lib/api.js'
 import { isSupabaseConfigured, supabase, supabaseConfigError } from './lib/supabase.js'
 import { renderPublicRegistration } from './public-registration.js'
@@ -383,7 +384,7 @@ async function renderPatientDashboard() {
       const { data: link, error: linkError } = await supabase.from('patient_accounts').select('patient_id').eq('user_id', session.user.id).maybeSingle()
       if (linkError) throw linkError
       if (!link?.patient_id) {
-        app.innerHTML = `<main class="public-route"><section class="auth-card patient-portal-entry"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>MEDIQ PATIENT PORTAL</small></div></div><h1>Account awaiting hospital link</h1><p>Your account is signed in, but it has not yet been linked to a verified MediQ patient record. Hospital reception must verify and connect your patient profile before private medical records can appear.</p>${patientHospitalDetails}<p>For registration and account linking, please contact the hospital reception team.</p><button class="button button-secondary" data-action="patient-signout" type="button">Sign out</button></section></main>`
+        app.innerHTML = `<main class="public-route patient-auth-page"><section class="auth-card patient-portal-entry"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>MEDIQ PATIENT PORTAL</small></div></div><p class="eyebrow">PATIENT REGISTRATION</p><h1>Complete your patient profile</h1><p>Enter your details to create a new MediQ patient record. Your Patient ID will be generated automatically. If your mobile number is already registered, hospital Admin must verify and link your existing record.</p><form id="patient-profile-registration-form" class="modal-form"><label class="form-field"><span>Full name</span><input name="fullName" maxlength="120" autocomplete="name" required></label><label class="form-field"><span>Age</span><input name="age" type="number" min="0" max="120" step="1" required></label><label class="form-field"><span>Gender</span><select name="gender" required><option value="">Select gender</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></label><label class="form-field"><span>Mobile number</span><input name="mobile" type="tel" inputmode="tel" autocomplete="tel" minlength="7" maxlength="30" pattern="[0-9+(). -]{7,30}" required></label><button class="button button-primary" type="submit">Create patient profile</button></form><p class="caption">Your account will not be connected to an existing medical record automatically. Possible matches require hospital verification.</p>${patientHospitalDetails}<button class="button button-secondary" data-action="patient-signout" type="button">Sign out</button></section></main>`
         return
       }
       const [patientResult, reportsResult, visitsResult, documentsResult, requestsResult, doctorsResult] = await Promise.all([
@@ -1197,6 +1198,45 @@ app.addEventListener('submit', async (event) => {
       note.textContent = /email not confirmed/i.test(error.message || '')
         ? 'Your email address is registered but not verified yet. Open the confirmation email in your inbox (or Spam), then return here and sign in. You can also use “Resend confirmation email”.'
         : error.message
+    }
+  }
+  if (event.target.id === 'patient-profile-registration-form') {
+    event.preventDefault()
+    const form = event.target
+    const data = new FormData(form)
+    const submit = form.querySelector('button[type="submit"]')
+    submit.disabled = true
+    submit.textContent = 'Creating secure patient profile…'
+    try {
+      const patient = await registerNewPatientAccount(supabase, {
+        fullName: String(data.get('fullName') || '').trim(),
+        age: Number(data.get('age')),
+        gender: String(data.get('gender') || ''),
+        mobile: String(data.get('mobile') || '').trim(),
+      })
+      let cardWarning = ''
+      try {
+        const card = await submitPatientIdCardApplication(supabase, {
+          bloodGroup: '', dateOfBirth: '', emergencyContactName: '',
+          emergencyContactPhone: '', address: '',
+        })
+        if (card?.status !== 'approved' || !card?.card_qr_id) {
+          cardWarning = ' Your patient profile is ready; please complete the ID card details from your dashboard.'
+        }
+      } catch (cardError) {
+        console.warn('Patient profile created; ID card issuance needs follow-up:', cardError.message)
+        cardWarning = ' Your patient profile is ready; please complete the ID card details from your dashboard.'
+      }
+      await renderPatientDashboard()
+      showToast('Patient profile created. Your Patient ID is ' + patient.patient_code + '.' + cardWarning)
+    } catch (error) {
+      submit.disabled = false
+      submit.textContent = 'Create patient profile'
+      const note = document.createElement('p')
+      note.className = 'form-guidance'
+      note.setAttribute('role', 'alert')
+      note.textContent = error.message
+      form.append(note)
     }
   }
   if (event.target.id === 'patient-id-card-application-form') {
