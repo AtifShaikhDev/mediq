@@ -64,7 +64,7 @@ begin
     raise exception 'Enter a valid mobile number.' using errcode = '22023';
   end if;
 
-  perform pg_advisory_xact_lock(hashtextextended('patient-self-register:' || normalized_mobile, 0));
+  perform pg_advisory_xact_lock(hashtextextended('patient-self-register:' || case when length(normalized_mobile) >= 10 then right(normalized_mobile, 10) else normalized_mobile end, 0));
 
   if exists (
     select 1 from public.patients p
@@ -134,10 +134,15 @@ begin
         'full_name', p.full_name, 'mobile', p.mobile
       ) order by p.created_at desc)
       from public.patients p
-      where regexp_replace(p.mobile, '[^0-9]', '', 'g') = regexp_replace(r.mobile, '[^0-9]', '', 'g')
-         or (length(regexp_replace(p.mobile, '[^0-9]', '', 'g')) >= 10
-             and length(regexp_replace(r.mobile, '[^0-9]', '', 'g')) >= 10
-             and right(regexp_replace(p.mobile, '[^0-9]', '', 'g'), 10) = right(regexp_replace(r.mobile, '[^0-9]', '', 'g'), 10))
+      where not exists (
+        select 1 from public.patient_accounts pa where pa.patient_id = p.id
+      )
+        and (
+          regexp_replace(p.mobile, '[^0-9]', '', 'g') = regexp_replace(r.mobile, '[^0-9]', '', 'g')
+          or (length(regexp_replace(p.mobile, '[^0-9]', '', 'g')) >= 10
+              and length(regexp_replace(r.mobile, '[^0-9]', '', 'g')) >= 10
+              and right(regexp_replace(p.mobile, '[^0-9]', '', 'g'), 10) = right(regexp_replace(r.mobile, '[^0-9]', '', 'g'), 10))
+        )
     ), '[]'::jsonb)
   from public.patient_account_link_requests r
   join auth.users u on u.id = r.user_id
