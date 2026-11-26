@@ -81,6 +81,7 @@ const state = {
   page: 'Dashboard',
   search: '',
   patientFilter: 'All patients',
+  doctorPatientSearch: '',
   departmentFilter: 'All departments',
   modal: null,
   toast: null,
@@ -578,6 +579,10 @@ function doctorDashboardPage() {
   const serving = mine.find((item) => item.status === 'Serving')
   const completed = mine.filter((item) => item.status === 'Completed')
   const ordered = [...waiting].sort((a, b) => new Date(a.arrivalAt) - new Date(b.arrivalAt))
+  const patientQuery = state.doctorPatientSearch.trim().toLowerCase()
+  const patientMatches = patientQuery
+    ? state.patients.filter((patient) => [patient.id, patient.name, patient.mobile].some((value) => String(value || '').toLowerCase().includes(patientQuery))).slice(0, 8)
+    : []
   return `${pageHeading('Doctor dashboard', 'Your assigned appointments and live queue status.', '')}
     <div class="metric-grid">
       ${metricCard('Assigned today', mine.length, 'your appointments', 'users', 'blue', 'Today')}
@@ -585,6 +590,15 @@ function doctorDashboardPage() {
       ${metricCard('Currently serving', serving ? serving.token : '—', 'your active patient', 'heart', 'teal', 'Live')}
       ${metricCard('Completed', completed.length, 'visits today', 'check', 'green', 'Today')}
     </div>
+    <section class="section-block doctor-patient-search-section">
+      <div class="section-heading"><div><h2>Find a patient</h2><p>Search securely by MediQ Patient ID, name or mobile number.</p></div><span class="access-note">Patient directory</span></div>
+      <div class="table-card">
+        <div class="table-filters" style="padding:18px 20px">
+          <label class="search-field" style="width:min(100%,520px)">\${icon('search')}<input id="doctor-patient-id-search" type="search" autocomplete="off" placeholder="Enter Patient ID (e.g. MQ-000020)" value="\${escapeHtml(state.doctorPatientSearch)}" aria-label="Search patient by MediQ Patient ID, name or mobile"></label>
+        </div>
+        \${patientQuery ? \`<div class="table-wrap"><table><thead><tr><th>PATIENT</th><th>PATIENT ID</th><th>MOBILE</th><th>ACTION</th></tr></thead><tbody>\${patientMatches.length ? patientMatches.map((patient) => \`<tr><td><strong>\${escapeHtml(patient.name)}</strong></td><td><span class="token">\${escapeHtml(patient.id)}</span></td><td>\${escapeHtml(patient.mobile || '—')}</td><td><button class="button button-secondary button-small" data-action="view-medical-record" data-id="\${escapeHtml(patient.id)}">Open record \${icon('chevron')}</button></td></tr>\`).join('') : '<tr><td colspan="4" class="empty-cell">No matching patient found. Check the Patient ID and try again.</td></tr>'}</tbody></table></div>\` : '<p class="form-guidance" style="margin:0 20px 18px">Start typing a Patient ID to find a patient and open their medical record.</p>'}
+      </div>
+    </section>
     <section class="section-block">
       <div class="section-heading"><div><h2>Your appointment queue</h2><p>Only patients registered with you are shown here.</p></div><button class="link-button" data-page="Queue Management">Open queue management ${icon('chevron')}</button></div>
       <div class="table-card"><div class="table-wrap"><table><thead><tr><th>POSITION</th><th>PATIENT</th><th>TOKEN</th><th>STATUS</th><th>ARRIVAL</th></tr></thead><tbody>
@@ -1197,6 +1211,14 @@ app.addEventListener('click', async (event) => {
 })
 
 app.addEventListener('input', (event) => {
+  if (event.target.id === 'doctor-patient-id-search') {
+    const start = event.target.selectionStart
+    state.doctorPatientSearch = event.target.value
+    renderPage()
+    const search = document.querySelector('#doctor-patient-id-search')
+    search?.focus()
+    search?.setSelectionRange(start, start)
+  }
   if (event.target.id === 'patient-search') {
     const start = event.target.selectionStart
     state.search = event.target.value
