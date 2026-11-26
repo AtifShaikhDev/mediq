@@ -168,7 +168,7 @@ begin
   if public.current_staff_role() is distinct from 'Admin' then
     raise exception 'Only active Admin users can review patient account requests.' using errcode = '42501';
   end if;
-  if p_decision not in ('approve','reject') then
+  if p_decision is null or p_decision not in ('approve','reject') then
     raise exception 'Choose approve or reject.' using errcode = '22023';
   end if;
 
