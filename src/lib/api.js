@@ -298,7 +298,8 @@ export async function registerNewPatientAccount(client, patient) {
     p_mobile: patient.mobile,
   })
   const row = unwrap(result)?.[0]
-  if (!row?.patient_id || !row?.patient_code) {
+  if (row?.registration_status === 'review_required') return row
+  if (row?.registration_status !== 'created' || !row?.patient_id || !row?.patient_code) {
     throw new Error('Patient registration could not be confirmed. Please refresh and check your account.')
   }
   return row
