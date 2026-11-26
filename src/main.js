@@ -611,7 +611,21 @@ function patientsPage() {
   }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
   const patientAccountLinkReviewSection = state.profile.role === 'Admin'
     ? `<section class="section-block"><div class="section-heading"><div><h2>Existing patient account-link requests</h2><p>Verify identity and confirm the hospital record before linking. Candidates are suggestions only.</p></div><span class="access-note">${state.patientAccountLinkRequests.length} pending</span></div><div class="table-card"><div class="table-wrap"><table><thead><tr><th>REQUESTING ACCOUNT</th><th>SUBMITTED DETAILS</th><th>POSSIBLE HOSPITAL RECORD</th><th>ACTION</th></tr></thead><tbody>${state.patientAccountLinkRequests.length ? state.patientAccountLinkRequests.map((request) => {
-      const candidates = Array.isArray(request.candidates) ? request.candidates : []
+      const rpcCandidates = Array.isArray(request.candidates) ? request.candidates : []
+      const submittedDigits = String(request.patient_mobile || '').replace(/\\D/g, '')
+      const fallbackCandidates = state.patients
+        .filter((patient) => {
+          const patientDigits = String(patient.mobile || '').replace(/\\D/g, '')
+          return submittedDigits.length >= 10 && patientDigits.length >= 10
+            && patientDigits.slice(-10) === submittedDigits.slice(-10)
+        })
+        .map((patient) => ({
+          id: patient.patientUuid,
+          patient_code: patient.id,
+          full_name: patient.name,
+          mobile: patient.mobile,
+        }))
+      const candidates = rpcCandidates.length ? rpcCandidates : fallbackCandidates
       const options = candidates.map((candidate) => `<option value="${escapeHtml(candidate.id)}">${escapeHtml(candidate.patient_code)} — ${escapeHtml(candidate.full_name)} (${escapeHtml(candidate.mobile)})</option>`).join('')
       return `<tr data-link-request-row="${escapeHtml(request.request_id)}"><td><strong>${escapeHtml(request.patient_email || 'Confirmed email')}</strong><small>${escapeHtml(new Date(request.requested_at).toLocaleString())}</small></td><td>${escapeHtml(request.patient_name)}<small>Age ${request.patient_age} · ${escapeHtml(request.patient_gender)} · ${escapeHtml(request.patient_mobile)}</small></td><td>${candidates.length ? `<select data-link-request-candidate aria-label="Select verified hospital patient record"><option value="">Select matching record</option>${options}</select>` : '<span class="status-badge">No mobile match found</span>'}</td><td><button class="button button-primary button-small" data-action="review-patient-account-link" data-id="${escapeHtml(request.request_id)}" data-decision="approve" ${candidates.length ? '' : 'disabled'}>Verify & link</button> <button class="button button-secondary button-small" data-action="review-patient-account-link" data-id="${escapeHtml(request.request_id)}" data-decision="reject">Reject</button></td></tr>`
     }).join('') : '<tr><td colspan="4" class="empty-cell">No patient account-link requests pending.</td></tr>'}</tbody></table></div></div></section>`
