@@ -394,7 +394,11 @@ async function renderPatientDashboard() {
       const { data: link, error: linkError } = await supabase.from('patient_accounts').select('patient_id').eq('user_id', session.user.id).maybeSingle()
       if (linkError) throw linkError
       if (!link?.patient_id) {
-        app.innerHTML = `<main class="public-route patient-auth-page"><section class="auth-card patient-portal-entry"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>MEDIQ PATIENT PORTAL</small></div></div><p class="eyebrow">PATIENT REGISTRATION</p><h1>Complete your patient profile</h1><p>Enter your details to create a new MediQ patient record. Your Patient ID will be generated automatically. If your mobile number is already registered, hospital Admin must verify and link your existing record.</p><form id="patient-profile-registration-form" class="modal-form"><label class="form-field"><span>Full name</span><input name="fullName" maxlength="120" autocomplete="name" required></label><label class="form-field"><span>Age</span><input name="age" type="number" min="0" max="120" step="1" required></label><label class="form-field"><span>Gender</span><select name="gender" required><option value="">Select gender</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></label><label class="form-field"><span>Mobile number</span><input name="mobile" type="tel" inputmode="tel" autocomplete="tel" minlength="7" maxlength="30" pattern="[0-9+(). -]{7,30}" required></label><button class="button button-primary" type="submit">Create patient profile</button></form><p class="caption">Your account will not be connected to an existing medical record automatically. Possible matches require hospital verification.</p>${patientHospitalDetails}<button class="button button-secondary" data-action="patient-signout" type="button">Sign out</button></section></main>`
+        let linkRequest = null
+        try { linkRequest = await getMyPatientAccountLinkRequest(supabase) }
+        catch (requestError) { console.warn('Patient account-link request status unavailable:', requestError.message) }
+        const pending = linkRequest?.request_status === 'pending'
+        app.innerHTML = `<main class="public-route patient-auth-page"><section class="auth-card patient-portal-entry"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>MEDIQ PATIENT PORTAL</small></div></div>${pending ? '<p class="eyebrow">HOSPITAL VERIFICATION</p><h1>Your request is under review</h1><p>Your details have been sent securely to hospital Admin. The team will verify your identity and existing hospital record before linking your account.</p><p class="caption">Your medical records remain private until verification is complete. Please check again later or contact hospital reception.</p>' : `<p class="eyebrow">PATIENT REGISTRATION</p><h1>Complete your patient profile</h1><p>Enter your details to create a new MediQ patient record. Your Patient ID will be generated automatically. If your mobile number is already registered, hospital Admin must verify and link your existing record.</p><form id="patient-profile-registration-form" class="modal-form"><label class="form-field"><span>Full name</span><input name="fullName" maxlength="120" autocomplete="name" required></label><label class="form-field"><span>Age</span><input name="age" type="number" min="0" max="120" step="1" required></label><label class="form-field"><span>Gender</span><select name="gender" required><option value="">Select gender</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></label><label class="form-field"><span>Mobile number</span><input name="mobile" type="tel" inputmode="tel" autocomplete="tel" minlength="7" maxlength="30" pattern="[0-9+(). -]{7,30}" required></label><button class="button button-primary" type="submit">Create patient profile</button></form><p class="caption">Your account will not be connected to an existing medical record automatically. Possible matches require hospital verification.</p>`}${patientHospitalDetails}<button class="button button-secondary" data-action="patient-signout" type="button">Sign out</button></section></main>`
         return
       }
       const [patientResult, reportsResult, visitsResult, documentsResult, requestsResult, doctorsResult] = await Promise.all([
@@ -1250,9 +1254,16 @@ app.addEventListener('submit', async (event) => {
         gender: String(data.get('gender') || ''),
         mobile: String(data.get('mobile') || '').trim(),
       })
-      // Keep the card application empty until the patient can provide optional
-      // card details on the dashboard. This avoids approving a blank card that
-      // would hide the details form permanently.
+      if (patient.registration_status === 'review_required') {
+        await renderPatientDashboard()
+        showToast('Your details were submitted for hospital verification. Your existing patient record will only be linked after Admin approval.')
+        return
+      }
+      if (patient.registration_status !== 'created' || !patient.patient_id || !patient.patient_code) {
+        throw new Error('The registration result could not be confirmed. Please refresh the portal before retrying.')
+      }
+      // Card details are collected after profile creation so the card is not
+      // automatically approved with blank optional information.
       await renderPatientDashboard()
       showToast('Patient profile created. Your Patient ID is ' + patient.patient_code + '. Complete the Digital Patient ID Card section to generate your card.')
     } catch (error) {
