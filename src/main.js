@@ -1028,6 +1028,7 @@ app.addEventListener('click', async (event) => {
     const row = target.closest('[data-link-request-row]')
     const patientId = row?.querySelector('[data-link-request-candidate]')?.value || null
     if (decision === 'approve' && !patientId) { showToast('Select the verified hospital patient record first.', 'error'); return }
+    if (decision === 'approve' && !window.confirm('Confirm that you independently verified this patient’s identity and selected the correct existing hospital record. Link this login now?')) return
     target.disabled = true
     try {
       const result = await reviewPatientAccountLinkRequest(supabase, {
