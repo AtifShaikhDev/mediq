@@ -304,6 +304,26 @@ export async function registerNewPatientAccount(client, patient) {
   return row
 }
 
+export async function getMyPatientAccountLinkRequest(client) {
+  const result = await client.rpc('get_my_patient_account_link_request')
+  return unwrap(result)?.[0] || null
+}
+
+export async function loadPatientAccountLinkRequests(client) {
+  const result = await client.rpc('admin_list_patient_account_link_requests')
+  return unwrap(result) || []
+}
+
+export async function reviewPatientAccountLinkRequest(client, { requestId, decision, patientId = null, note = null }) {
+  const result = await client.rpc('admin_review_patient_account_link_request', {
+    p_request_id: requestId,
+    p_decision: decision,
+    p_patient_id: patientId,
+    p_review_note: note,
+  })
+  return unwrap(result)?.[0]
+}
+
 export async function loadPatientMedicalRecord(client, patientId) {
   const [patientResult, visitsResult, notesResult, reportsResult, documentsResult] = await Promise.all([
     client.from('patients').select('id,patient_code,full_name,age,gender,mobile,created_at').eq('id', patientId).single(),
