@@ -845,6 +845,21 @@ async function refreshWorkspace() {
   state.queues = workspace.queues
   state.staff = workspace.staff
   state.visitRequests = workspace.visitRequests || []
+  if (workspace.profile.role === 'Admin') {
+    try {
+      state.patientAccountLinkRequests = await loadPatientAccountLinkRequests(supabase)
+      const { data: issuedCards, error: issuedCardsError } = await supabase.from('patient_id_card_applications')
+        .select('id,patient_id,blood_group,status,submitted_at,reviewed_at,patient:patients(id,patient_code,full_name,mobile)')
+        .eq('status', 'approved').order('reviewed_at', { ascending: false }).limit(200)
+      if (issuedCardsError) throw issuedCardsError
+      state.patientIdCardApplications = issuedCards || []
+    } catch (error) {
+      console.warn('Admin patient review data could not be refreshed:', error.message)
+    }
+  } else {
+    state.patientAccountLinkRequests = []
+    state.patientIdCardApplications = []
+  }
   state.departmentRows = workspace.departments
   state.hospital = workspace.hospital
   try {
