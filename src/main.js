@@ -25,6 +25,10 @@ import {
   loadPendingPatientIdCards,
   reviewPatientIdCard,
   verifyPatientIdCard,
+  registerNewPatientAccount,
+  getMyPatientAccountLinkRequest,
+  loadPatientAccountLinkRequests,
+  reviewPatientAccountLinkRequest,
 } from './lib/api.js'
 import { isSupabaseConfigured, supabase, supabaseConfigError } from './lib/supabase.js'
 import { renderPublicRegistration } from './public-registration.js'
@@ -87,6 +91,7 @@ const state = {
   publicRegistrationRetention: null,
   visitRequests: [],
   patientIdCardApplications: [],
+  patientAccountLinkRequests: [],
 }
 const app = document.querySelector('#app')
 const themeStorageKey = 'mediq-theme'
@@ -292,6 +297,12 @@ async function loadSignedInWorkspace(user, force = false) {
       state.queues = workspace.queues
       state.staff = workspace.staff
       state.visitRequests = workspace.visitRequests || []
+  if (workspace.profile.role === 'Admin') {
+    try { state.patientAccountLinkRequests = await loadPatientAccountLinkRequests(supabase) }
+    catch (error) { console.warn('Patient account link review queue unavailable:', error.message); state.patientAccountLinkRequests = [] }
+  } else {
+    state.patientAccountLinkRequests = []
+  }
       state.patientIdCardApplications = []
       if (workspace.profile.role === 'Admin') {
         const { data: pendingCards, error: pendingCardsError } = await supabase.from('patient_id_card_applications')
@@ -377,13 +388,17 @@ async function renderPatientDashboard() {
       const { data: sessionData } = await supabase.auth.getSession()
       const session = sessionData.session
       if (!session) {
-        app.innerHTML = `<main class="public-route patient-auth-page"><section class="auth-card patient-portal-entry"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>MEDIQ PATIENT PORTAL</small></div><span class="patient-secure-label">${icon('shield-check')} Secure access</span></div><div class="patient-auth-heading"><p class="eyebrow">WELCOME TO YOUR HOSPITAL PORTAL</p><h1>Welcome back</h1><p>Sign in to securely view your visits, doctor reports and personal health documents.</p></div>${message ? '<p class="form-guidance" role="status">' + escapeHtml(message) + '</p>' : ''}<form id="patient-account-login" class="modal-form patient-login-form"><label class="form-field"><span>Email address</span><input name="email" type="email" autocomplete="email" placeholder="you@example.com" required></label><label class="form-field"><span>Password</span><input name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required></label><button class="button button-primary" type="submit">${icon('lock-keyhole')} Sign in securely</button></form><div class="patient-auth-links"><button class="text-button" data-action="request-patient-password-reset" type="button">Forgot password?</button><button class="text-button" data-action="resend-patient-confirmation" type="button">Resend confirmation email</button></div><details class="patient-signup-details"><summary>New to MediQ? <span>Create a patient account</span></summary><form id="patient-account-signup" class="modal-form"><label class="form-field"><span>Full name</span><input name="fullName" required maxlength="120" autocomplete="name"></label><label class="form-field"><span>Email address</span><input name="email" type="email" autocomplete="email" placeholder="you@example.com" required></label><label class="form-field"><span>Create password</span><input name="password" type="password" minlength="8" autocomplete="new-password" required></label><button class="button button-secondary" type="submit">Create patient account</button></form><p class="caption">After creating an account, hospital reception must link it to your patient record.</p></details>${patientHospitalDetails}<p class="patient-auth-footnote">${icon('shield-check')} Your health information is protected and visible only to authorized accounts.</p></section></main>`
+        app.innerHTML = `<main class="public-route patient-auth-page"><section class="auth-card patient-portal-entry"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>MEDIQ PATIENT PORTAL</small></div><span class="patient-secure-label">${icon('shield-check')} Secure access</span></div><div class="patient-auth-heading"><p class="eyebrow">WELCOME TO YOUR HOSPITAL PORTAL</p><h1>Welcome back</h1><p>Sign in to securely view your visits, doctor reports and personal health documents.</p></div>${message ? '<p class="form-guidance" role="status">' + escapeHtml(message) + '</p>' : ''}<form id="patient-account-login" class="modal-form patient-login-form"><label class="form-field"><span>Email address</span><input name="email" type="email" autocomplete="email" placeholder="you@example.com" required></label><label class="form-field"><span>Password</span><input name="password" type="password" autocomplete="current-password" placeholder="Enter your password" required></label><button class="button button-primary" type="submit">${icon('lock-keyhole')} Sign in securely</button></form><div class="patient-auth-links"><button class="text-button" data-action="request-patient-password-reset" type="button">Forgot password?</button><button class="text-button" data-action="resend-patient-confirmation" type="button">Resend confirmation email</button></div><details class="patient-signup-details"><summary>New to MediQ? <span>Create a patient account</span></summary><form id="patient-account-signup" class="modal-form"><label class="form-field"><span>Full name</span><input name="fullName" required maxlength="120" autocomplete="name"></label><label class="form-field"><span>Email address</span><input name="email" type="email" autocomplete="email" placeholder="you@example.com" required></label><label class="form-field"><span>Create password</span><input name="password" type="password" minlength="8" autocomplete="new-password" required></label><button class="button button-secondary" type="submit">Create patient account</button></form><p class="caption">Confirm your email, sign in, and complete the patient profile form to receive your automatically generated MediQ Patient ID.</p></details>${patientHospitalDetails}<p class="patient-auth-footnote">${icon('shield-check')} Your health information is protected and visible only to authorized accounts.</p></section></main>`
         return
       }
       const { data: link, error: linkError } = await supabase.from('patient_accounts').select('patient_id').eq('user_id', session.user.id).maybeSingle()
       if (linkError) throw linkError
       if (!link?.patient_id) {
-        app.innerHTML = `<main class="public-route"><section class="auth-card patient-portal-entry"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>MEDIQ PATIENT PORTAL</small></div></div><h1>Account awaiting hospital link</h1><p>Your account is signed in, but it has not yet been linked to a verified MediQ patient record. Hospital reception must verify and connect your patient profile before private medical records can appear.</p>${patientHospitalDetails}<p>For registration and account linking, please contact the hospital reception team.</p><button class="button button-secondary" data-action="patient-signout" type="button">Sign out</button></section></main>`
+        let linkRequest = null
+        try { linkRequest = await getMyPatientAccountLinkRequest(supabase) }
+        catch (requestError) { console.warn('Patient account-link request status unavailable:', requestError.message) }
+        const pending = linkRequest?.request_status === 'pending'
+        app.innerHTML = `<main class="public-route patient-auth-page"><section class="auth-card patient-portal-entry"><div class="display-brand patient-portal-brand"><span class="brand-mark">${icon('heart')}</span><div><strong>${escapeHtml(patientHospitalName)}</strong><small>MEDIQ PATIENT PORTAL</small></div></div>${pending ? '<p class="eyebrow">HOSPITAL VERIFICATION</p><h1>Your request is under review</h1><p>Your details have been sent securely to hospital Admin. The team will verify your identity and existing hospital record before linking your account.</p><p class="caption">Your medical records remain private until verification is complete. Please check again later or contact hospital reception.</p>' : `<p class="eyebrow">PATIENT REGISTRATION</p><h1>Complete your patient profile</h1><p>Enter your details to create a new MediQ patient record. Your Patient ID will be generated automatically. If your mobile number is already registered, hospital Admin must verify and link your existing record.</p><form id="patient-profile-registration-form" class="modal-form"><label class="form-field"><span>Full name</span><input name="fullName" maxlength="120" autocomplete="name" required></label><label class="form-field"><span>Age</span><input name="age" type="number" min="0" max="120" step="1" required></label><label class="form-field"><span>Gender</span><select name="gender" required><option value="">Select gender</option><option>Female</option><option>Male</option><option>Non-binary</option><option>Prefer not to say</option></select></label><label class="form-field"><span>Mobile number</span><input name="mobile" type="tel" inputmode="tel" autocomplete="tel" minlength="7" maxlength="30" pattern="[0-9+(). -]{7,30}" required></label><button class="button button-primary" type="submit">Create patient profile</button></form><p class="caption">Your account will not be connected to an existing medical record automatically. Possible matches require hospital verification.</p>`}${patientHospitalDetails}<button class="button button-secondary" data-action="patient-signout" type="button">Sign out</button></section></main>`
         return
       }
       const [patientResult, reportsResult, visitsResult, documentsResult, requestsResult, doctorsResult] = await Promise.all([
@@ -594,13 +609,20 @@ function patientsPage() {
     const matchesDepartment = state.departmentFilter === 'All departments' || patient.department === state.departmentFilter
     return matchesText && matchesStatus && matchesDepartment
   }).sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  const patientAccountLinkReviewSection = state.profile.role === 'Admin'
+    ? `<section class="section-block"><div class="section-heading"><div><h2>Existing patient account-link requests</h2><p>Verify identity and confirm the hospital record before linking. Candidates are suggestions only.</p></div><span class="access-note">${state.patientAccountLinkRequests.length} pending</span></div><div class="table-card"><div class="table-wrap"><table><thead><tr><th>REQUESTING ACCOUNT</th><th>SUBMITTED DETAILS</th><th>POSSIBLE HOSPITAL RECORD</th><th>ACTION</th></tr></thead><tbody>${state.patientAccountLinkRequests.length ? state.patientAccountLinkRequests.map((request) => {
+      const candidates = Array.isArray(request.candidates) ? request.candidates : []
+      const options = candidates.map((candidate) => `<option value="${escapeHtml(candidate.id)}">${escapeHtml(candidate.patient_code)} — ${escapeHtml(candidate.full_name)} (${escapeHtml(candidate.mobile)})</option>`).join('')
+      return `<tr data-link-request-row="${escapeHtml(request.request_id)}"><td><strong>${escapeHtml(request.patient_email || 'Confirmed email')}</strong><small>${escapeHtml(new Date(request.requested_at).toLocaleString())}</small></td><td>${escapeHtml(request.patient_name)}<small>Age ${request.patient_age} · ${escapeHtml(request.patient_gender)} · ${escapeHtml(request.patient_mobile)}</small></td><td>${candidates.length ? `<select data-link-request-candidate aria-label="Select verified hospital patient record"><option value="">Select matching record</option>${options}</select>` : '<span class="status-badge">No mobile match found</span>'}</td><td><button class="button button-primary button-small" data-action="review-patient-account-link" data-id="${escapeHtml(request.request_id)}" data-decision="approve" ${candidates.length ? '' : 'disabled'}>Verify & link</button> <button class="button button-secondary button-small" data-action="review-patient-account-link" data-id="${escapeHtml(request.request_id)}" data-decision="reject">Reject</button></td></tr>`
+    }).join('') : '<tr><td colspan="4" class="empty-cell">No patient account-link requests pending.</td></tr>'}</tbody></table></div></div></section>`
+    : '';
   const pendingIdCardSection = state.profile.role === 'Admin'
     ? `<section class="section-block"><div class="section-heading"><div><h2>Recently Issued Patient ID Cards</h2><p>Cards are approved automatically after a patient submits the form.</p></div><span class="access-note">${state.patientIdCardApplications.length} issued</span></div><div class="table-card"><div class="table-wrap"><table><thead><tr><th>PATIENT</th><th>CONTACT</th><th>BLOOD GROUP</th><th>ISSUED</th><th>STATUS</th></tr></thead><tbody>${state.patientIdCardApplications.length ? state.patientIdCardApplications.map(a => `<tr><td><strong>${escapeHtml(a.patient?.full_name || 'Patient')}</strong><small>${escapeHtml(a.patient?.patient_code || '')}</small></td><td>${escapeHtml(a.patient?.mobile || '—')}</td><td>${escapeHtml(a.blood_group || 'Not provided')}</td><td>${escapeHtml(new Date(a.reviewed_at || a.submitted_at).toLocaleDateString())}</td><td><span class="status-badge status-completed">Automatically approved</span></td></tr>`).join('') : '<tr><td colspan="5" class="empty-cell">No digital ID cards issued yet.</td></tr>'}</tbody></table></div></div></section>`
     : '';
   const pendingRequestSection = ['Admin', 'Receptionist'].includes(state.profile.role)
     ? `<section class="section-block"><div class="section-heading"><div><h2>Pending patient visit requests</h2><p>Approve to create a visit and queue token, or reject the request.</p></div><span class="access-note">${state.visitRequests.length} pending</span></div><div class="table-card"><div class="table-wrap"><table><thead><tr><th>PATIENT</th><th>DEPARTMENT</th><th>DOCTOR</th><th>REQUESTED</th><th>ACTION</th></tr></thead><tbody>${state.visitRequests.length ? state.visitRequests.map((request) => `<tr><td><strong>${escapeHtml(request.patient?.full_name || 'Patient')}</strong><small>${escapeHtml(request.patient?.patient_code || '')}</small></td><td>${escapeHtml(request.department?.name || '—')}</td><td>${escapeHtml(request.doctor?.full_name || '—')}</td><td>${escapeHtml(new Date(request.created_at).toLocaleString())}</td><td><button class="button button-primary button-small" data-action="review-visit-request" data-id="${escapeHtml(request.id)}" data-decision="approve">Approve</button> <button class="button button-secondary button-small" data-action="review-visit-request" data-id="${escapeHtml(request.id)}" data-decision="reject">Reject</button></td></tr>`).join('') : '<tr><td colspan="5" class="empty-cell">No pending visit requests.</td></tr>'}</tbody></table></div></div></section>`
     : '';
-  return `${pendingIdCardSection}${pendingRequestSection}${pageHeading('Patients', 'Manage patient records and registrations.', `${canRegister ? `<button class="button button-primary" data-action="open-register">${icon('plus')} Register patient</button>` : ''}`)}
+  return `${patientAccountLinkReviewSection}${pendingIdCardSection}${pendingRequestSection}${pageHeading('Patients', 'Manage patient records and registrations.', `${canRegister ? `<button class="button button-primary" data-action="open-register">${icon('plus')} Register patient</button>` : ''}`)}
     <div class="patient-summary-strip"><div><span class="summary-icon blue">${icon('users')}</span><span><strong>${state.patients.length}</strong><small>Total patient records</small></span></div><div><span class="summary-icon amber">${icon('clock')}</span><span><strong>${stats().waiting}</strong><small>Waiting today</small></span></div><div><span class="summary-icon teal">${icon('check')}</span><span><strong>${stats().completed}</strong><small>Visits completed</small></span></div></div>
     <section class="table-card patients-table-card"><div class="table-toolbar"><div><h2>Patient directory</h2><p>${filtered.length} patient${filtered.length === 1 ? '' : 's'} found</p></div><div class="table-filters"><label class="search-field">${icon('search')}<input id="patient-search" type="search" placeholder="Search patients..." value="${escapeHtml(state.search)}" aria-label="Search patients"></label><select id="patient-status-filter" aria-label="Filter by status"><option>All patients</option>${['Waiting', 'Serving', 'Completed'].map((status) => `<option ${state.patientFilter === status ? 'selected' : ''}>${status}</option>`).join('')}</select><select id="department-filter" aria-label="Filter by department"><option>All departments</option>${departments.map((department) => `<option ${state.departmentFilter === department ? 'selected' : ''}>${department}</option>`).join('')}</select></div></div>
       <div class="table-wrap"><table><thead><tr><th>PATIENT</th><th>DEPARTMENT</th><th>TOKEN</th><th>STATUS</th><th>ARRIVAL</th></tr></thead><tbody>${patientRows(filtered)}</tbody></table></div>
@@ -735,7 +757,7 @@ function renderModal() {
     if (patient) {
       const canEdit = ['Admin', 'Receptionist'].includes(state.profile.role)
       const fields = `<div class="form-grid"><label class="form-field form-full"><span>Full name</span><input name="name" required maxlength="120" value="${escapeHtml(patient.name)}" ${canEdit ? '' : 'readonly'}></label><label class="form-field"><span>Age</span><input name="age" type="number" min="0" max="120" required value="${patient.age}" ${canEdit ? '' : 'readonly'}></label><label class="form-field"><span>Gender</span><select name="gender" ${canEdit ? '' : 'disabled'}>${['Female', 'Male', 'Non-binary', 'Prefer not to say'].map((gender) => `<option ${patient.gender === gender ? 'selected' : ''}>${gender}</option>`).join('')}</select></label><label class="form-field form-full"><span>Mobile number</span><input name="mobile" type="tel" required value="${escapeHtml(patient.mobile)}" ${canEdit ? '' : 'readonly'}></label></div>`
-      content = `<div class="modal-heading"><div><p class="eyebrow">PATIENT PROFILE</p><h2>${escapeHtml(patient.name)}</h2><p>${escapeHtml(patient.id)} · Registered ${formatTime(patient.createdAt)}</p></div><button class="icon-button" data-action="close-modal" aria-label="Close dialog">${icon('close')}</button></div><div class="profile-summary"><span class="avatar avatar-soft avatar-large">${initials(patient.name)}</span><div><span class="token">${escapeHtml(patient.token || 'No visit')}</span>${patient.status ? `<span class="status-badge ${patient.status.toLowerCase()}"><i></i>${escapeHtml(patient.status)}</span>` : ''}</div></div>${canEdit ? `<form id="edit-patient-form" class="modal-form"><input type="hidden" name="patientUuid" value="${escapeHtml(patient.patientUuid)}">${fields}<div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Cancel</button><button type="submit" class="button button-primary">${icon('check')} Save profile</button></div></form>` : `<div class="modal-form">${fields}<div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Close</button></div></div>`}${state.profile?.role === 'Admin' ? `<form id="invite-patient-account-form" class="modal-form"><h3>Create patient login</h3><input type="hidden" name="patientId" value="${escapeHtml(patient.patientUuid)}"><label class="form-field"><span>Patient email address</span><input name="email" type="email" required maxlength="254" placeholder="patient@example.com"></label><button type="submit" class="button button-primary">Send patient invitation</button><small>Supabase emails a secure invitation link. The patient chooses their own password; MediQ does not store or send passwords.</small></form><form id="link-patient-account-form" class="modal-form"><h3>Link existing login</h3><input type="hidden" name="patientUuid" value="${escapeHtml(patient.patientUuid)}"><label class="form-field"><span>Verified patient account email</span><input name="email" type="email" required placeholder="patient@example.com"></label><button type="submit" class="button button-secondary">Link existing account</button><small>Use only when the patient already has a verified Auth account.</small></form>` : ''}`
+      content = `<div class="modal-heading"><div><p class="eyebrow">PATIENT PROFILE</p><h2>${escapeHtml(patient.name)}</h2><p>${escapeHtml(patient.id)} · Registered ${formatTime(patient.createdAt)}</p></div><button class="icon-button" data-action="close-modal" aria-label="Close dialog">${icon('close')}</button></div><div class="profile-summary"><span class="avatar avatar-soft avatar-large">${initials(patient.name)}</span><div><span class="token">${escapeHtml(patient.token || 'No visit')}</span>${patient.status ? `<span class="status-badge ${patient.status.toLowerCase()}"><i></i>${escapeHtml(patient.status)}</span>` : ''}</div></div>${canEdit ? `<form id="edit-patient-form" class="modal-form"><input type="hidden" name="patientUuid" value="${escapeHtml(patient.patientUuid)}">${fields}<div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Cancel</button><button type="submit" class="button button-primary">${icon('check')} Save profile</button></div></form>` : `<div class="modal-form">${fields}<div class="modal-actions"><button type="button" class="button button-secondary" data-action="close-modal">Close</button></div></div>`}${state.profile?.role === 'Admin' ? `<form id="invite-patient-account-form" class="modal-form"><h3>Create patient login</h3><input type="hidden" name="patientId" value="${escapeHtml(patient.patientUuid)}"><label class="form-field"><span>Patient email address</span><input name="email" type="email" required maxlength="254" placeholder="patient@example.com"></label><button type="submit" class="button button-primary">Send patient invitation</button><small>Verify the patient’s identity against hospital records before inviting. Supabase emails a secure invitation link; the patient chooses their own password. Never link by name or mobile match alone.</small></form><form id="link-patient-account-form" class="modal-form"><h3>Link existing login</h3><input type="hidden" name="patientUuid" value="${escapeHtml(patient.patientUuid)}"><label class="form-field"><span>Verified patient account email</span><input name="email" type="email" required placeholder="patient@example.com"></label><button type="submit" class="button button-secondary">Link existing account</button><small>Use only when the patient already has a verified Auth account.</small></form>` : ''}`
     }
   } else if (state.modal.type === 'medical-record') {
     const record = state.modal.record
@@ -823,6 +845,21 @@ async function refreshWorkspace() {
   state.queues = workspace.queues
   state.staff = workspace.staff
   state.visitRequests = workspace.visitRequests || []
+  if (workspace.profile.role === 'Admin') {
+    try {
+      state.patientAccountLinkRequests = await loadPatientAccountLinkRequests(supabase)
+      const { data: issuedCards, error: issuedCardsError } = await supabase.from('patient_id_card_applications')
+        .select('id,patient_id,blood_group,status,submitted_at,reviewed_at,patient:patients(id,patient_code,full_name,mobile)')
+        .eq('status', 'approved').order('reviewed_at', { ascending: false }).limit(200)
+      if (issuedCardsError) throw issuedCardsError
+      state.patientIdCardApplications = issuedCards || []
+    } catch (error) {
+      console.warn('Admin patient review data could not be refreshed:', error.message)
+    }
+  } else {
+    state.patientAccountLinkRequests = []
+    state.patientIdCardApplications = []
+  }
   state.departmentRows = workspace.departments
   state.hospital = workspace.hospital
   try {
@@ -985,6 +1022,26 @@ app.addEventListener('click', async (event) => {
   if (action === 'close-modal') { state.modal = null; renderModal() }
   if (action === 'backdrop-close' && event.target === target) { state.modal = null; renderModal() }
   if (action === 'view-patient') { state.modal = { type: 'profile', id: target.dataset.id }; renderModal() }
+  if (action === 'review-patient-account-link') {
+    if (state.profile?.role !== 'Admin') { showToast('Only Admin can review patient account links.', 'error'); return }
+    const decision = target.dataset.decision
+    const row = target.closest('[data-link-request-row]')
+    const patientId = row?.querySelector('[data-link-request-candidate]')?.value || null
+    if (decision === 'approve' && !patientId) { showToast('Select the verified hospital patient record first.', 'error'); return }
+    if (decision === 'approve' && !window.confirm('Confirm that you independently verified this patient’s identity and selected the correct existing hospital record. Link this login now?')) return
+    target.disabled = true
+    try {
+      const result = await reviewPatientAccountLinkRequest(supabase, {
+        requestId: target.dataset.id, decision, patientId,
+        note: decision === 'approve' ? 'Identity and hospital record verified by Admin.' : 'Rejected after Admin review.',
+      })
+      await refreshWorkspace()
+      showToast(result.request_status === 'approved' ? `Existing patient account linked to ${result.patient_code}.` : 'Patient account-link request rejected.')
+    } catch (error) {
+      target.disabled = false
+      showToast('Could not review patient account-link request: ' + error.message, 'error')
+    }
+  }
   if (action === 'review-patient-id-card') {
     if (state.profile?.role !== 'Admin') { showToast('Only Admin can approve patient ID cards.', 'error'); return }
     const decision = target.dataset.decision
@@ -1197,6 +1254,42 @@ app.addEventListener('submit', async (event) => {
       note.textContent = /email not confirmed/i.test(error.message || '')
         ? 'Your email address is registered but not verified yet. Open the confirmation email in your inbox (or Spam), then return here and sign in. You can also use “Resend confirmation email”.'
         : error.message
+    }
+  }
+  if (event.target.id === 'patient-profile-registration-form') {
+    event.preventDefault()
+    const form = event.target
+    const data = new FormData(form)
+    const submit = form.querySelector('button[type="submit"]')
+    submit.disabled = true
+    submit.textContent = 'Creating secure patient profile…'
+    try {
+      const patient = await registerNewPatientAccount(supabase, {
+        fullName: String(data.get('fullName') || '').trim(),
+        age: Number(data.get('age')),
+        gender: String(data.get('gender') || ''),
+        mobile: String(data.get('mobile') || '').trim(),
+      })
+      if (patient.registration_status === 'review_required') {
+        await renderPatientDashboard()
+        showToast('Your details were submitted for hospital verification. Your existing patient record will only be linked after Admin approval.')
+        return
+      }
+      if (patient.registration_status !== 'created' || !patient.patient_id || !patient.patient_code) {
+        throw new Error('The registration result could not be confirmed. Please refresh the portal before retrying.')
+      }
+      // Card details are collected after profile creation so the card is not
+      // automatically approved with blank optional information.
+      await renderPatientDashboard()
+      showToast('Patient profile created. Your Patient ID is ' + patient.patient_code + '. Complete the Digital Patient ID Card section to generate your card.')
+    } catch (error) {
+      submit.disabled = false
+      submit.textContent = 'Create patient profile'
+      const note = document.createElement('p')
+      note.className = 'form-guidance'
+      note.setAttribute('role', 'alert')
+      note.textContent = error.message
+      form.append(note)
     }
   }
   if (event.target.id === 'patient-id-card-application-form') {
