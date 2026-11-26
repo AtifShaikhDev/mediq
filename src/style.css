@@ -1057,3 +1057,70 @@ body.public-registration-page { min-width: 0; }
   .patient-secure-label { margin-left: 0; }
   .patient-auth-links { flex-direction: column; align-items: flex-start; }
 }
+
+
+/* Patient portal visual refresh */
+.patient-auth-page { min-height: 100vh; display: grid; place-items: center; }
+.patient-auth-page .patient-portal-entry { width: min(100%, 700px); }
+.patient-signup-details { margin-top: 22px; padding: 21px; border: 1px solid #cfe3e9; border-radius: 16px; background: linear-gradient(145deg,#f4fbfc,#f8fbff); }
+.patient-signup-details summary { display: grid; gap: 6px; padding-right: 26px; }
+.patient-signup-details summary::after { position: absolute; right: 20px; top: 18px; }
+.patient-signup-details { position: relative; }
+.patient-signup-details summary strong { color: #18394e; font-size: 18px; letter-spacing: -.02em; }
+.patient-signup-details summary small { color: #718797; font-size: 12px; font-weight: 450; line-height: 1.5; }
+.patient-signup-kicker { color: #168b91; font-size: 9px; letter-spacing: .15em; }
+.patient-signup-steps { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 5px; }
+.patient-signup-steps span { padding: 7px 10px; border: 1px solid #d8e9ec; border-radius: 999px; background: #fff; color: #587184; font-size: 10px; font-weight: 650; }
+.patient-signup-details #patient-account-signup { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 13px; }
+.patient-signup-details #patient-account-signup .form-field:first-child { grid-column: 1/-1; }
+.patient-signup-details #patient-account-signup button { grid-column: 1/-1; min-height: 48px; }
+.patient-signup-details .caption { font-size: 11px; line-height: 1.65; }
+.patient-account-page { min-height: 100vh; padding: clamp(20px,4vw,48px) 16px; background: radial-gradient(ellipse at 12% 5%,rgba(42,174,181,.16),transparent 32%),linear-gradient(150deg,#102d43,#153f56); }
+.patient-account-page .patient-account-dashboard { width: min(100%,980px); padding: clamp(22px,4vw,42px); border: 1px solid rgba(255,255,255,.75); border-radius: 24px; box-shadow: 0 25px 75px rgba(3,20,34,.2); }
+.patient-account-dashboard > h2 { margin-top: 30px; color: #183b50; font-size: 21px; letter-spacing: -.025em; }
+.patient-account-dashboard > p { color: #718696; line-height: 1.65; }
+.patient-account-dashboard .modal-heading { align-items: center; padding: 22px; border: 1px solid #e1edf1; border-radius: 17px; background: linear-gradient(120deg,#f2f9fb,#f8fbff); }
+.patient-account-dashboard .modal-heading h1 { color: #183b50; font-size: clamp(25px,4vw,34px); letter-spacing: -.04em; }
+.patient-account-dashboard .modal-heading p:last-child { color: #168b91; font-weight: 750; letter-spacing: .06em; }
+.patient-id-card-application { padding: clamp(17px,3vw,26px); border-radius: 20px; background: #fbfdff; }
+.patient-card-section-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:15px; margin-bottom:18px; }
+.patient-card-section-heading .eyebrow { margin:0 0 5px; color:#188b91; font-size:9px; letter-spacing:.15em; font-weight:800; }
+.patient-card-section-heading h2 { margin:0; color:#183b50; font-size:22px; }
+.patient-card-section-heading p:last-child { margin:6px 0 0; color:#718696; font-size:12px; }
+.patient-card-status { flex:0 0 auto; padding:7px 10px; border:1px solid #cdebe2; border-radius:999px; background:#effaf6; color:#177a62; font-size:10px; font-weight:750; }
+.patient-id-card { gap:16px; margin:20px 0; }
+.patient-id-card-front,.patient-id-card-back { position:relative; overflow:hidden; min-height:260px; padding:22px; border:1px solid rgba(255,255,255,.5); border-radius:20px; box-shadow:0 12px 28px rgba(23,58,79,.10); }
+.patient-id-card-front { background: radial-gradient(circle at 92% 8%,rgba(255,255,255,.22),transparent 32%),linear-gradient(135deg,#123c56 0%,#176b7a 55%,#159b9b 100%); color:#fff; }
+.patient-id-card-front::after { content:""; position:absolute; width:180px; height:180px; right:-75px; bottom:-95px; border:1px solid rgba(255,255,255,.2); border-radius:50%; box-shadow:0 0 0 20px rgba(255,255,255,.04),0 0 0 42px rgba(255,255,255,.03); pointer-events:none; }
+.patient-id-card-brand strong { color:#fff; font-size:24px; letter-spacing:.04em; }
+.patient-id-card-brand strong span { color:#78e0d3; }
+.patient-id-card-brand > span { color:rgba(255,255,255,.8); font-size:8px; letter-spacing:.14em; }
+.patient-card-accent { color:#9ce8df; font-size:8px; font-weight:800; letter-spacing:.2em; margin-top:-8px; }
+.patient-id-card-main { position:relative; z-index:1; }
+.patient-id-card-main small { color:rgba(255,255,255,.68); font-size:8px; font-weight:750; letter-spacing:.14em; }
+.patient-id-card-main strong { display:block; max-width:230px; color:#fff; font-size:clamp(16px,2vw,20px); }
+.patient-id-card-main b { display:inline-block; margin-top:2px; padding:6px 9px; border:1px solid rgba(255,255,255,.25); border-radius:7px; background:rgba(4,31,48,.2); color:#fff; letter-spacing:.1em; }
+.patient-id-card-qr { width:88px; height:88px; flex-basis:88px; border:4px solid #fff; }
+.patient-id-card-meta { position:relative; z-index:1; border-color:rgba(255,255,255,.25); }
+.patient-id-card-meta span { color:rgba(255,255,255,.7); font-size:8px; font-weight:750; }
+.patient-id-card-meta strong { color:#fff; font-size:12px; }
+.patient-id-card-back { background:linear-gradient(145deg,#f6fbff,#e6f2f7); border-color:#d3e4eb; }
+.patient-card-back-brand { display:flex; align-items:center; gap:11px; margin-bottom:6px; }
+.patient-card-back-mark { display:grid; place-items:center; width:38px; height:38px; border-radius:12px; background:#d9f2ef; color:#168b91; }
+.patient-card-back-mark .icon { width:19px; height:19px; }
+.patient-card-back-brand strong,.patient-card-back-brand small { display:block; }
+.patient-card-back-brand strong { color:#173b50; font-size:15px; }
+.patient-card-back-brand small { margin-top:3px; color:#648092; font-size:8px; font-weight:800; letter-spacing:.13em; }
+.patient-id-card-back p { color:#4f6c7d; font-size:11px; line-height:1.5; }
+.patient-id-card-back > small { padding-top:10px; border-top:1px solid #d6e5eb; color:#637f8f; font-size:9px; }
+.patient-account-dashboard .medical-record-item { border-radius:14px; }
+@media(max-width:620px) {
+ .patient-signup-details #patient-account-signup { grid-template-columns:1fr; }
+ .patient-signup-details #patient-account-signup .form-field:first-child,.patient-signup-details #patient-account-signup button { grid-column:auto; }
+ .patient-card-section-heading { flex-direction:column; }
+ .patient-id-card { grid-template-columns:1fr; }
+ .patient-account-page .patient-account-dashboard { padding:18px; }
+}
+@media print {
+ .patient-id-card-front { background:#176b7a !important; }
+}
