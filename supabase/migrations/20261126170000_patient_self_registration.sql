@@ -60,6 +60,9 @@ begin
     select 1
     from public.patients p
     where regexp_replace(p.mobile, '[^0-9]', '', 'g') = normalized_mobile
+       or (length(regexp_replace(p.mobile, '[^0-9]', '', 'g')) >= 10
+           and length(normalized_mobile) >= 10
+           and right(regexp_replace(p.mobile, '[^0-9]', '', 'g'), 10) = right(normalized_mobile, 10))
   ) then
     raise exception 'A hospital record may already use this mobile number. Please ask hospital Admin to verify and link your existing record.'
       using errcode = 'PT409';
