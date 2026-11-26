@@ -1214,21 +1214,11 @@ app.addEventListener('submit', async (event) => {
         gender: String(data.get('gender') || ''),
         mobile: String(data.get('mobile') || '').trim(),
       })
-      let cardWarning = ''
-      try {
-        const card = await submitPatientIdCardApplication(supabase, {
-          bloodGroup: '', dateOfBirth: '', emergencyContactName: '',
-          emergencyContactPhone: '', address: '',
-        })
-        if (card?.status !== 'approved' || !card?.card_qr_id) {
-          cardWarning = ' Your patient profile is ready; please complete the ID card details from your dashboard.'
-        }
-      } catch (cardError) {
-        console.warn('Patient profile created; ID card issuance needs follow-up:', cardError.message)
-        cardWarning = ' Your patient profile is ready; please complete the ID card details from your dashboard.'
-      }
+      // Keep the card application empty until the patient can provide optional
+      // card details on the dashboard. This avoids approving a blank card that
+      // would hide the details form permanently.
       await renderPatientDashboard()
-      showToast('Patient profile created. Your Patient ID is ' + patient.patient_code + '.' + cardWarning)
+      showToast('Patient profile created. Your Patient ID is ' + patient.patient_code + '. Complete the Digital Patient ID Card section to generate your card.')
     } catch (error) {
       submit.disabled = false
       submit.textContent = 'Create patient profile'
