@@ -1235,7 +1235,10 @@ app.addEventListener('change', (event) => {
   if (event.target.name === 'departmentChoice' && event.target.form?.id === 'patient-visit-request-form') {
     const doctorSelect = event.target.form.elements.doctorChoice
     const departmentId = event.target.value
-    const choices = Array.from(doctorSelect.options).filter(option => option.value && option.value.startsWith(departmentId + '|'))
+    if (!doctorSelect.dataset.allDoctorOptions) doctorSelect.dataset.allDoctorOptions = Array.from(doctorSelect.options).filter(option => option.value).map(option => option.outerHTML).join('')
+    const allOptions = document.createElement('select')
+    allOptions.innerHTML = doctorSelect.dataset.allDoctorOptions
+    const choices = Array.from(allOptions.options).filter(option => option.value && option.value.startsWith(departmentId + '|'))
     doctorSelect.innerHTML = choices.length
       ? '<option value="">Choose a doctor</option>' + choices.map(option => option.outerHTML).join('')
       : '<option value="">No active doctors in this department</option>'
