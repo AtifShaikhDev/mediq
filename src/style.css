@@ -1124,3 +1124,43 @@ body.public-registration-page { min-width: 0; }
 @media print {
  .patient-id-card-front { background:#176b7a !important; }
 }
+
+
+/* Patient workspace dashboard — shared MediQ visual language */
+.patient-account-page { display:block; padding:24px; background:#f3f7fa; }
+.patient-account-page .patient-account-dashboard { width:min(100%,1440px); margin:0 auto; padding:28px; border:1px solid #e1eaf0; border-radius:22px; background:#fff; box-shadow:0 12px 38px rgba(23,58,79,.08); }
+.patient-account-dashboard .patient-portal-brand { display:flex; align-items:center; gap:12px; padding-bottom:18px; margin-bottom:22px; }
+.patient-account-dashboard .patient-workspace { display:grid; grid-template-columns:220px minmax(0,1fr); gap:26px; align-items:start; }
+.patient-workspace-sidebar { position:sticky; top:18px; display:grid; gap:7px; padding:16px 12px; border:1px solid #e5edf2; border-radius:16px; background:#f8fbfd; }
+.patient-sidebar-label { margin:8px 10px 4px; color:#91a3b1; font-size:9px; font-weight:800; letter-spacing:.14em; }
+.patient-workspace-sidebar a,.patient-workspace-sidebar button { display:flex; align-items:center; min-height:39px; padding:9px 11px; border:0; border-radius:9px; color:#456174; background:transparent; font-size:12px; font-weight:650; text-decoration:none; text-align:left; }
+.patient-workspace-sidebar a:hover,.patient-workspace-sidebar button:hover { color:#147e88; background:#eaf5f6; }
+.patient-workspace-content { min-width:0; }
+.patient-welcome-banner { display:flex; justify-content:space-between; align-items:center; gap:20px; padding:25px; border:1px solid #dcebef; border-radius:17px; background:linear-gradient(120deg,#f0f9fa,#f7faff); }
+.patient-welcome-banner .eyebrow { margin:0 0 8px; color:#168b91; font-size:9px; font-weight:800; letter-spacing:.15em; }
+.patient-welcome-banner h1 { margin:0; color:#183b50; font-size:clamp(24px,3vw,34px); letter-spacing:-.035em; }
+.patient-welcome-banner p:last-child { margin:8px 0 0; color:#718696; font-size:12px; }
+.patient-id-chip { display:grid; gap:6px; min-width:150px; padding:13px 15px; border:1px solid #d8e8ed; border-radius:12px; background:#fff; }
+.patient-id-chip small { color:#8297a5; font-size:8px; font-weight:800; letter-spacing:.12em; }
+.patient-id-chip strong { color:#168b91; font-size:17px; letter-spacing:.04em; }
+.patient-overview-grid { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:12px; margin:16px 0 25px; }
+.patient-overview-grid article { display:grid; gap:7px; padding:16px; border:1px solid #e4edf2; border-radius:13px; background:#fff; }
+.patient-overview-grid article span { color:#718696; font-size:10px; font-weight:650; }
+.patient-overview-grid article strong { color:#183b50; font-size:23px; }
+.patient-overview-grid article small { color:#91a2ae; font-size:9px; }
+.patient-dashboard-sections > h2,.patient-dashboard-sections > .modal-heading { scroll-margin-top:18px; }
+.patient-dashboard-sections > h2 { padding-top:18px; border-top:1px solid #edf1f4; }
+.patient-dashboard-sections .medical-record-item { margin:12px 0; }
+@media(max-width:900px) {
+ .patient-account-page { padding:12px; }
+ .patient-account-page .patient-account-dashboard { padding:18px; }
+ .patient-account-dashboard .patient-workspace { grid-template-columns:1fr; gap:14px; }
+ .patient-workspace-sidebar { position:static; display:flex; flex-wrap:wrap; gap:5px; }
+ .patient-sidebar-label { flex-basis:100%; }
+ .patient-overview-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media(max-width:560px) {
+ .patient-welcome-banner { align-items:flex-start; flex-direction:column; padding:18px; }
+ .patient-overview-grid { gap:8px; }
+ .patient-overview-grid article { padding:12px; }
+}
