@@ -1232,6 +1232,15 @@ app.addEventListener('input', (event) => {
 app.addEventListener('change', (event) => {
   if (event.target.id === 'patient-status-filter') { state.patientFilter = event.target.value; renderPage() }
   if (event.target.id === 'department-filter') { state.departmentFilter = event.target.value; renderPage() }
+  if (event.target.name === 'departmentChoice' && event.target.form?.id === 'patient-visit-request-form') {
+    const doctorSelect = event.target.form.elements.doctorChoice
+    const departmentId = event.target.value
+    const choices = Array.from(doctorSelect.options).filter(option => option.value && option.value.startsWith(departmentId + '|'))
+    doctorSelect.innerHTML = choices.length
+      ? '<option value="">Choose a doctor</option>' + choices.map(option => option.outerHTML).join('')
+      : '<option value="">No active doctors in this department</option>'
+    doctorSelect.disabled = choices.length === 0
+  }
   if (event.target.name === 'departmentId' && event.target.form?.id === 'register-form') {
     const doctorSelect = event.target.form.elements.doctorUserId
     const departmentId = event.target.value
