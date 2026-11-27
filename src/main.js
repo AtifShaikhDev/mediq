@@ -1392,15 +1392,30 @@ app.addEventListener('submit', async (event) => {
     }
     submit.disabled = true
     submit.textContent = 'Submitting request…'
+    let requestCreated = false
+    let uploadedCount = 0
     try {
       const { data: sessionData, error: sessionError } = await supabase.auth.getSession()
       if (sessionError) throw sessionError
       const { data: accountLink, error: accountError } = await supabase.from('patient_accounts').select('patient_id').eq('user_id', sessionData.session.user.id).single()
       if (accountError) throw accountError
       await createPatientVisitRequest(supabase, { departmentId, doctorUserId })
-      for (const file of files) await uploadPatientDocument(supabase, { patientId: accountLink.patient_id, file, visibility: 'patient_visible' })
+      requestCreated = true
+      for (const file of files) {
+        await uploadPatientDocument(supabase, { patientId: accountLink.patient_id, file, visibility: 'patient_visible' })
+        uploadedCount += 1
+      }
       await renderPatientDashboard()
     } catch (error) {
+      if (requestCreated) {
+        await renderPatientDashboard()
+        const notice = document.createElement('p')
+        notice.className = 'form-guidance'
+        notice.setAttribute('role', 'status')
+        notice.textContent = 'Your visit request was submitted. ' + uploadedCount + ' of ' + files.length + ' attachments uploaded. Please contact reception to share any remaining documents; do not submit another request.'
+        app.querySelector('.patient-dashboard-sections')?.prepend(notice)
+        return
+      }
       const note = document.createElement('p')
       note.className = 'form-guidance'
       note.setAttribute('role', 'alert')
